@@ -238,18 +238,45 @@ export const apiService = {
       return createdOrder;
     }
 
-    const response = await fetch(`${API_BASE_URL}/api/orders`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(orderPayload),
-    });
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/orders`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderPayload),
+      });
 
-    if (!response.ok) {
-      const err = await response.json().catch(() => ({}));
-      throw new Error(err.message || 'Failed to submit order');
+      if (!response.ok) {
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.message || 'Failed to submit order');
+      }
+
+      const backendOrder = await response.json();
+      try {
+        const existing = JSON.parse(localStorage.getItem(ORDERS_STORAGE_KEY) || '[]');
+        existing.unshift(backendOrder);
+        localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50)));
+      } catch {}
+      return backendOrder;
+    } catch (e) {
+      console.warn('Backend call failed, falling back to local storage:', e);
+      // Fallback to local order creation
+      const timestamp = new Date();
+      const datePart = timestamp.toISOString().slice(2, 10).replace(/-/g, '');
+      const randomPart = Math.floor(1000 + Math.random() * 9000);
+      const fallbackOrder: Order = {
+        ...orderPayload,
+        id: `ord_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`,
+        orderNumber: `POS-${datePart}-${randomPart}`,
+        createdAt: timestamp.toISOString(),
+        paymentVerificationStatus: 'pending_verification',
+      };
+      try {
+        const existing = JSON.parse(localStorage.getItem(ORDERS_STORAGE_KEY) || '[]');
+        existing.unshift(fallbackOrder);
+        localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50)));
+      } catch {}
+      return fallbackOrder;
     }
-
-    return response.json();
   },
 
   /**
