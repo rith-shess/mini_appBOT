@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Header } from './components/common/Header';
 import { BottomNav } from './components/common/BottomNav';
 import { HomePage } from './pages/HomePage';
@@ -8,6 +8,7 @@ import { CartPage } from './pages/CartPage';
 import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { ContactPage } from './pages/ContactPage';
+import { AdminDashboardPage } from './pages/AdminDashboardPage';
 import { ActiveScreen, CategoryId, Product, Order } from './types';
 import { apiService } from './services/api';
 import { useTelegram } from './hooks/useTelegram';
@@ -25,25 +26,26 @@ export const App: React.FC = () => {
   const { webApp, isTelegram, triggerHaptic } = useTelegram();
   const { totalItems } = useCart();
 
-  // Load initial catalog
-  useEffect(() => {
-    async function loadData() {
-      try {
-        setIsLoading(true);
-        const [cats, prods] = await Promise.all([
-          apiService.getCategories(),
-          apiService.getProducts(),
-        ]);
-        setCategories(cats);
-        setProducts(prods);
-      } catch (err) {
-        console.error('Failed to load initial data:', err);
-      } finally {
-        setIsLoading(false);
-      }
+  // Load catalog data
+  const loadData = useCallback(async () => {
+    try {
+      setIsLoading(true);
+      const [cats, prods] = await Promise.all([
+        apiService.getCategories(),
+        apiService.getProducts(),
+      ]);
+      setCategories(cats);
+      setProducts(prods);
+    } catch (err) {
+      console.error('Failed to load initial data:', err);
+    } finally {
+      setIsLoading(false);
     }
-    loadData();
   }, []);
+
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   // Telegram native BackButton support
   useEffect(() => {
@@ -59,7 +61,7 @@ export const App: React.FC = () => {
             setCurrentScreen(selectedCategoryId ? 'categories' : 'home');
           } else if (currentScreen === 'checkout') {
             setCurrentScreen('cart');
-          } else if (currentScreen === 'order-confirmation') {
+          } else if (currentScreen === 'order-confirmation' || currentScreen === 'admin') {
             setCurrentScreen('home');
           } else {
             setCurrentScreen('home');
@@ -171,15 +173,25 @@ export const App: React.FC = () => {
             {currentScreen === 'contact' && (
               <ContactPage />
             )}
+
+            {currentScreen === 'admin' && (
+              <AdminDashboardPage
+                onBack={() => handleNavigate('home')}
+                onNavigate={handleNavigate}
+                onRefreshData={loadData}
+              />
+            )}
           </>
         )}
       </main>
 
-      {/* Mobile-first bottom navigation bar */}
-      <BottomNav
-        currentScreen={currentScreen}
-        onNavigate={handleNavigate}
-      />
+      {/* Mobile-first bottom navigation bar (hidden in admin mode) */}
+      {currentScreen !== 'admin' && (
+        <BottomNav
+          currentScreen={currentScreen}
+          onNavigate={handleNavigate}
+        />
+      )}
     </div>
   );
 };

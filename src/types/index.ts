@@ -68,6 +68,9 @@ export interface CustomerInfo {
   detailedAddress: string;
   orderNotes?: string;
   telegramUsername?: string;
+  latitude?: number;
+  longitude?: number;
+  googleMapsUrl?: string;
 }
 
 export type PaymentMethod = 'aba_khqr' | 'bank_transfer' | 'cash_on_delivery';
@@ -91,6 +94,20 @@ export interface Order {
   notes?: string;
 }
 
+export interface CompanySettings {
+  companyName: string;
+  tagline: string;
+  phoneNumber: string;
+  telegramSupportUser: string;
+  facebookUrl: string;
+  showroomAddress: string;
+  workingHours: string;
+  khqrAccountName: string;
+  khqrQrImageUrl?: string;
+  adminPin: string;
+  authorizedTelegramUsernames: string[];
+}
+
 export type Language = 'en' | 'km';
 
 export type ActiveScreen =
@@ -100,4 +117,5 @@ export type ActiveScreen =
   | 'cart'
   | 'checkout'
   | 'order-confirmation'
-  | 'contact';
+  | 'contact'
+  | 'admin';

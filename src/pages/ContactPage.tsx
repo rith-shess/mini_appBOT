@@ -1,21 +1,29 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Phone,
   Send,
   Facebook,
   MapPin,
   Clock,
-  ShieldCheck,
-  MessageCircle,
-  HelpCircle,
   ExternalLink,
 } from 'lucide-react';
 import { useTranslation } from '../hooks/useTranslation';
 import { useTelegram } from '../hooks/useTelegram';
+import { apiService, defaultCompanySettings } from '../services/api';
+import { CompanySettings } from '../types';
 
 export const ContactPage: React.FC = () => {
   const { t } = useTranslation();
-  const { isTelegram, user, closeApp } = useTelegram();
+  const { isTelegram, closeApp } = useTelegram();
+  const [settings, setSettings] = useState<CompanySettings>(defaultCompanySettings);
+
+  useEffect(() => {
+    apiService.getSettings().then(setSettings);
+  }, []);
+
+  const telegramLink = settings.telegramSupportUser.startsWith('http')
+    ? settings.telegramSupportUser
+    : `https://t.me/${settings.telegramSupportUser.replace('@', '')}`;
 
   return (
     <div className="space-y-5 pb-28">
@@ -42,7 +50,7 @@ export const ContactPage: React.FC = () => {
         </p>
 
         <a
-          href="https://t.me/InfoPOSMini_StoreBot"
+          href={telegramLink}
           target="_blank"
           rel="noopener noreferrer"
           className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white text-[#1778A8] text-xs font-bold transition-all shadow-md active:scale-95 hover:bg-slate-50"
@@ -64,10 +72,10 @@ export const ContactPage: React.FC = () => {
               {t.contact.hotline}
             </h3>
             <a
-              href="tel:+85523999888"
+              href={`tel:${settings.phoneNumber.split('/')[0].trim()}`}
               className="text-sm font-black text-navy-900 hover:text-brand-600 transition-colors block mt-0.5"
             >
-              +855 (0) 23 999 888 / +855 (0) 12 345 678
+              {settings.phoneNumber}
             </a>
             <span className="text-[11px] text-slate-500 block mt-0.5">
               Sales, quotations & technical support
@@ -85,12 +93,12 @@ export const ContactPage: React.FC = () => {
               {t.contact.facebookPage}
             </h3>
             <a
-              href="https://facebook.com/infoposhardware"
+              href={settings.facebookUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="text-sm font-bold text-navy-900 hover:text-brand-600 transition-colors block mt-0.5"
+              className="text-sm font-bold text-navy-900 hover:text-brand-600 transition-colors block mt-0.5 truncate"
             >
-              fb.com/infoposhardware
+              {settings.facebookUrl.replace('https://', '')}
             </a>
             <span className="text-[11px] text-slate-500 block mt-0.5">
               Product updates, demos & live videos
@@ -108,7 +116,7 @@ export const ContactPage: React.FC = () => {
               {t.contact.showroomAddress}
             </h3>
             <p className="text-xs font-semibold text-navy-900 mt-0.5 leading-snug">
-              {t.contact.showroomValue}
+              {settings.showroomAddress}
             </p>
             <span className="text-[11px] text-slate-500 block mt-0.5">
               Visit our showroom to test touch screens, scanners & printers in person
@@ -126,7 +134,7 @@ export const ContactPage: React.FC = () => {
               {t.contact.workingHours}
             </h3>
             <p className="text-xs font-bold text-navy-900 mt-0.5">
-              {t.contact.workingHoursValue}
+              {settings.workingHours}
             </p>
             <span className="text-[11px] text-emerald-600 font-semibold block mt-0.5">
               • Technical dispatch available 6 days a week

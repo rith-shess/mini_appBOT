@@ -90,6 +90,19 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
           <div className="text-slate-600">
             {order.customer.detailedAddress}, {order.customer.provinceOrCity}
           </div>
+          {order.customer.googleMapsUrl && (
+            <div className="pt-1">
+              <a
+                href={order.customer.googleMapsUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[11px] font-bold hover:bg-emerald-100 transition-colors"
+              >
+                <MapPin className="w-3.5 h-3.5 text-emerald-600" />
+                <span>📍 View Delivery Pin in Google Maps</span>
+              </a>
+            </div>
+          )}
           {order.customer.orderNotes && (
             <div className="text-slate-500 text-[11px] italic pt-1 border-t border-slate-200">
               Note: {order.customer.orderNotes}

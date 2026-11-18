@@ -1,5 +1,5 @@
 import React from 'react';
-import { ShoppingBag, Globe, Sparkles } from 'lucide-react';
+import { ShoppingBag, Globe, ShieldCheck } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useCart } from '../../hooks/useCart';
 import { useTelegram } from '../../hooks/useTelegram';
@@ -10,7 +10,7 @@ interface HeaderProps {
   currentScreen: ActiveScreen;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigate, currentScreen }) => {
   const { language, setLanguage, t } = useTranslation();
   const { totalItems } = useCart();
   const { isTelegram, user } = useTelegram();
@@ -32,8 +32,15 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
           </span>
         </div>
         <div className="flex items-center gap-2 text-slate-300">
-          <span className="hidden sm:inline text-slate-400">{t.common.verifiedStore}</span>
-          <span className="text-brand-300 font-semibold tracking-wide">PHNOM PENH</span>
+          <button
+            onClick={() => onNavigate('admin')}
+            className="flex items-center gap-1 text-[10px] text-brand-300 hover:text-white font-bold tracking-wider hover:underline focus:outline-none"
+          >
+            <ShieldCheck className="w-3 h-3 text-emerald-400" />
+            <span>ADMIN</span>
+          </button>
+          <span className="text-slate-600">|</span>
+          <span className="text-slate-400 font-semibold tracking-wide">PHNOM PENH</span>
         </div>
       </div>
 
@@ -62,8 +69,22 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate }) => {
           </div>
         </button>
 
-        {/* Right side controls: Language switcher & Cart pill */}
+        {/* Right side controls: Language switcher, Admin trigger & Cart pill */}
         <div className="flex items-center gap-2">
+          {/* Admin shortcut */}
+          <button
+            onClick={() => onNavigate('admin')}
+            title="Admin Dashboard (Private Access)"
+            className={`p-1.5 sm:px-2 sm:py-1.5 rounded-lg border text-xs font-bold transition-all focus:outline-none active:scale-95 flex items-center gap-1 ${
+              currentScreen === 'admin'
+                ? 'bg-navy-900 text-white border-navy-900 shadow-xs'
+                : 'bg-slate-50/80 hover:bg-slate-100 text-slate-700 border-slate-200'
+            }`}
+          >
+            <ShieldCheck className="w-3.5 h-3.5 text-brand-600" />
+            <span className="hidden sm:inline">Admin</span>
+          </button>
+
           {/* Language Switcher */}
           <button
             onClick={toggleLanguage}

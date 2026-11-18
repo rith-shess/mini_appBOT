@@ -12,13 +12,16 @@ import {
   CheckCircle2,
   Clock,
   Info,
+  MapPin,
+  ExternalLink,
+  Navigation,
 } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useTranslation } from '../hooks/useTranslation';
 import { formatUSD } from '../utils/formatters';
 import { useTelegram } from '../hooks/useTelegram';
 import { apiService } from '../services/api';
-import { PaymentMethod, Order, ActiveScreen } from '../types';
+import { PaymentMethod, Order } from '../types';
 
 interface CheckoutPageProps {
   onBack: () => void;
@@ -67,6 +70,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   const [detailedAddress, setDetailedAddress] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
 
+  // Customer GPS Location State
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
+  const [isLocating, setIsLocating] = useState<boolean>(false);
+  const [locationSuccessMsg, setLocationSuccessMsg] = useState<string | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   // Payment method
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('aba_khqr');
 
@@ -77,6 +87,52 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Geolocation Handler
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      setLocationError('Geolocation is not supported on this browser/device.');
+      return;
+    }
+
+    setIsLocating(true);
+    setLocationError(null);
+    triggerHaptic('medium');
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        setLatitude(lat);
+        setLongitude(lng);
+        setIsLocating(false);
+        triggerHaptic('success');
+        setLocationSuccessMsg(`GPS Pin captured: ${lat.toFixed(5)}, ${lng.toFixed(5)}`);
+
+        // Update address field with GPS tag
+        const gpsTag = `[GPS Pin: ${lat.toFixed(5)}, ${lng.toFixed(5)}]`;
+        if (!detailedAddress.trim()) {
+          setDetailedAddress(`Current Location ${gpsTag}`);
+        } else if (!detailedAddress.includes('GPS Pin:')) {
+          setDetailedAddress(`${detailedAddress} ${gpsTag}`);
+        }
+      },
+      (error) => {
+        setIsLocating(false);
+        let msg = 'Unable to retrieve your current location.';
+        if (error.code === error.PERMISSION_DENIED) {
+          msg = 'Location access was denied. Please allow location access in your device settings.';
+        } else if (error.code === error.POSITION_UNAVAILABLE) {
+          msg = 'Location signal unavailable. Please ensure GPS is enabled.';
+        } else if (error.code === error.TIMEOUT) {
+          msg = 'Location request timed out. Please try again.';
+        }
+        setLocationError(msg);
+        triggerHaptic('error');
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 10000 }
+    );
+  };
 
   // File upload handler
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -151,6 +207,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
           detailedAddress: detailedAddress.trim(),
           orderNotes: orderNotes.trim(),
           telegramUsername: user?.username ? `@${user.username}` : undefined,
+          latitude: latitude || undefined,
+          longitude: longitude || undefined,
+          googleMapsUrl:
+            latitude && longitude
+              ? `https://www.google.com/maps?q=${latitude},${longitude}`
+              : undefined,
         },
         items,
         subtotal,
@@ -253,10 +315,23 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               </select>
             </div>
 
+            {/* Detailed Address with GPS Location Helper */}
             <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
-                {t.checkout.detailedAddress} <span className="text-red-500">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1">
+                <label className="block text-xs font-bold text-navy-900">
+                  {t.checkout.detailedAddress} <span className="text-red-500">*</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={handleGetCurrentLocation}
+                  disabled={isLocating}
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-1 rounded-lg transition-colors focus:outline-none"
+                >
+                  <Navigation className={`w-3 h-3 ${isLocating ? 'animate-spin' : ''}`} />
+                  <span>{isLocating ? 'Detecting GPS...' : '📍 Use Current Location'}</span>
+                </button>
+              </div>
+
               <input
                 type="text"
                 required
@@ -265,6 +340,31 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 placeholder={t.checkout.detailedAddressPlaceholder}
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all"
               />
+
+              {/* GPS Confirmation Pill */}
+              {latitude && longitude && (
+                <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-[11px] flex items-center justify-between animate-in fade-in">
+                  <div className="flex items-center gap-1.5 truncate">
+                    <MapPin className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                    <span className="font-mono truncate">
+                      GPS: {latitude.toFixed(5)}, {longitude.toFixed(5)}
+                    </span>
+                  </div>
+                  <a
+                    href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold underline text-brand-700 flex items-center gap-1 shrink-0 ml-2"
+                  >
+                    <span>Check Map</span>
+                    <ExternalLink className="w-3 h-3" />
+                  </a>
+                </div>
+              )}
+
+              {locationError && (
+                <p className="mt-1.5 text-[11px] text-red-600 font-medium">{locationError}</p>
+              )}
             </div>
 
             <div>
