@@ -93,10 +93,15 @@ export async function sendTelegramOrderAlert(order: Order, settings: CompanySett
     `💳 <b>Payment:</b> ${order.paymentMethod.toUpperCase().replace('_', ' ')}\n` +
     `⚡ <b>Status:</b> ⏳ <b>Pending Verification</b>`;
 
-  const inlineKeyboard: any[] = [];
+  const inlineKeyboard: any[] = [
+    [
+      { text: '✅ Approve & Verify Payment', callback_data: `verify:${order.id}` },
+      { text: '❌ Reject Payment', callback_data: `reject:${order.id}` },
+    ],
+  ];
   if (order.customer.googleMapsUrl) {
     inlineKeyboard.push([
-      { text: '📍 Open Customer GPS Map', url: order.customer.googleMapsUrl },
+      { text: '📍 Open Customer GPS in Google Maps', url: order.customer.googleMapsUrl },
     ]);
   }
 
