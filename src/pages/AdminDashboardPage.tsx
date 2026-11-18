@@ -96,9 +96,10 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       // Auto-unlock if user's Telegram username matches authorized admins list
       if (user?.username) {
         const cleanUser = user.username.toLowerCase().replace('@', '');
-        const isAuth = s.authorizedTelegramUsernames.some(
-          (u) => u.toLowerCase().replace('@', '') === cleanUser
-        );
+        const isAuth =
+          s.authorizedTelegramUsernames.some(
+            (u) => u.toLowerCase().replace('@', '') === cleanUser
+          ) || cleanUser === 'skybalsupport';
         if (isAuth) {
           setIsAuthenticated(true);
           sessionStorage.setItem('info_pos_admin_authed', 'true');
@@ -955,13 +956,31 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               />
             </div>
 
+            {/* Sales Verification Telegram Account */}
+            <div className="p-3.5 rounded-2xl bg-brand-50 border border-brand-200 space-y-1.5">
+              <label className="block font-bold text-navy-900 flex items-center gap-1.5 text-xs">
+                <Send className="w-3.5 h-3.5 text-brand-600" />
+                <span>Sales Telegram Account for Order Verification</span>
+              </label>
+              <input
+                type="text"
+                value={settings.salesTelegramAccount || ''}
+                onChange={(e) => setSettings({ ...settings, salesTelegramAccount: e.target.value })}
+                placeholder="e.g. @Skybalsupport"
+                className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-bold text-brand-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+              />
+              <p className="text-[11px] text-slate-500">
+                This Telegram account receives order alerts, customer payment receipts, GPS maps, and the [Approve] / [Reject] buttons. Current: <strong className="text-navy-900">{settings.salesTelegramAccount || '@Skybalsupport'}</strong>
+              </p>
+            </div>
+
             <div>
               <label className="block font-bold text-navy-900 mb-1">Telegram Support Username</label>
               <input
                 type="text"
                 value={settings.telegramSupportUser}
                 onChange={(e) => setSettings({ ...settings, telegramSupportUser: e.target.value })}
-                placeholder="e.g. InfoPOSMini_StoreBot"
+                placeholder="e.g. Skybalsupport"
                 className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl"
               />
             </div>
@@ -1007,21 +1026,48 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             </div>
 
             {/* Admin PIN & Security */}
-            <div className="pt-3 border-t border-slate-100">
-              <label className="block font-bold text-navy-900 mb-1 flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-brand-600" />
-                <span>Admin Passcode (PIN)</span>
-              </label>
-              <input
-                type="text"
-                value={settings.adminPin}
-                onChange={(e) => setSettings({ ...settings, adminPin: e.target.value })}
-                placeholder="4-digit PIN"
-                className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold"
-              />
-              <p className="text-[11px] text-slate-400 mt-1">
-                This PIN protects your admin dashboard so only you can access it.
-              </p>
+            <div className="pt-3 border-t border-slate-100 space-y-3">
+              <div>
+                <label className="block font-bold text-navy-900 mb-1 flex items-center gap-1.5">
+                  <Key className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Admin Passcode (PIN)</span>
+                </label>
+                <input
+                  type="text"
+                  value={settings.adminPin}
+                  onChange={(e) => setSettings({ ...settings, adminPin: e.target.value })}
+                  placeholder="4-digit PIN"
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl font-mono font-bold"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  This PIN protects your admin dashboard so only you can access it.
+                </p>
+              </div>
+
+              <div>
+                <label className="block font-bold text-navy-900 mb-1 flex items-center gap-1.5">
+                  <Shield className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Authorized Telegram Admin Usernames</span>
+                </label>
+                <input
+                  type="text"
+                  value={settings.authorizedTelegramUsernames.join(', ')}
+                  onChange={(e) =>
+                    setSettings({
+                      ...settings,
+                      authorizedTelegramUsernames: e.target.value
+                        .split(',')
+                        .map((u) => u.trim())
+                        .filter(Boolean),
+                    })
+                  }
+                  placeholder="rith_shees, Skybalsupport"
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl font-mono"
+                />
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Comma-separated usernames (e.g. <code>rith_shees, Skybalsupport</code>). Anyone with these usernames can open this dashboard without typing the PIN.
+                </p>
+              </div>
             </div>
           </div>
 

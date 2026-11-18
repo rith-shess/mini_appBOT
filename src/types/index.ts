@@ -86,12 +86,14 @@ export interface Order {
   deliveryFee: number;
   totalAmount: number;
   paymentMethod: PaymentMethod;
-  paymentProofUrl?: string; // Base64 preview or R2 URL in future
+  paymentProofUrl?: string;
   paymentProofFileName?: string;
   paymentVerificationStatus: PaymentVerificationStatus;
   createdAt: string;
   telegramUserId?: string;
   notes?: string;
+  verifiedBy?: string;
+  verifiedAt?: string;
 }
 
 export interface CompanySettings {
@@ -99,6 +101,7 @@ export interface CompanySettings {
   tagline: string;
   phoneNumber: string;
   telegramSupportUser: string;
+  salesTelegramAccount: string;
   facebookUrl: string;
   showroomAddress: string;
   workingHours: string;

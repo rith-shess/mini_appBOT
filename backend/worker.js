@@ -17,7 +17,7 @@ export default {
     }
 
     const BOT_TOKEN = env.TELEGRAM_BOT_TOKEN;
-    const SALES_CHAT_ID = env.TELEGRAM_SALES_CHAT_ID;
+    const SALES_CHAT_ID = env.TELEGRAM_SALES_CHAT_ID || '@Skybalsupport';
 
     // Helper for Telegram API call
     async function callTelegram(method, payload, isMultipart = false, formData = null) {

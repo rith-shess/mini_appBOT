@@ -14,7 +14,7 @@ const path = require('path');
 
 const PORT = process.env.PORT || 4000;
 const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
-const SALES_CHAT_ID = process.env.TELEGRAM_SALES_CHAT_ID || '';
+const SALES_CHAT_ID = process.env.TELEGRAM_SALES_CHAT_ID || '@Skybalsupport';
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
 // Simple in-memory & JSON file storage for orders

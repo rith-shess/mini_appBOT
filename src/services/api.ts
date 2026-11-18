@@ -14,14 +14,15 @@ export const defaultCompanySettings: CompanySettings = {
   companyName: 'INFO POS Hardware',
   tagline: 'Premium POS Solutions & Retail Equipment',
   phoneNumber: '+855 (0) 23 999 888 / +855 (0) 12 345 678',
-  telegramSupportUser: 'InfoPOSMini_StoreBot',
+  telegramSupportUser: 'Skybalsupport',
+  salesTelegramAccount: '@Skybalsupport',
   facebookUrl: 'https://facebook.com/infoposhardware',
   showroomAddress: 'Building 48, Blvd. Mao Tse Toung, Chamkarmon, Phnom Penh, Cambodia',
   workingHours: 'Monday – Saturday: 8:00 AM – 5:30 PM',
   khqrAccountName: 'INFO POS HARDWARE (USD)',
   khqrQrImageUrl: '',
   adminPin: '8888',
-  authorizedTelegramUsernames: ['rith_shees', 'rith-shess', 'rithshees'],
+  authorizedTelegramUsernames: ['rith_shees', 'rith-shess', 'rithshees', 'Skybalsupport'],
 };
 
 function getStoredProducts(): Product[] {
