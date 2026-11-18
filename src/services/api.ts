@@ -17,14 +17,14 @@ export const defaultCompanySettings: CompanySettings = {
   telegramSupportUser: 'Skybalsupport',
   salesTelegramAccount: '@Skybalsupport',
   telegramBotToken: '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug',
-  salesTelegramChatId: '1256184682',
+  salesTelegramChatId: '1275900952, 1256184682',
   facebookUrl: 'https://facebook.com/infoposhardware',
   showroomAddress: 'Building 48, Blvd. Mao Tse Toung, Chamkarmon, Phnom Penh, Cambodia',
   workingHours: 'Monday – Saturday: 8:00 AM – 5:30 PM',
   khqrAccountName: 'INFO POS HARDWARE (USD)',
   khqrQrImageUrl: '',
   adminPin: '8888',
-  authorizedTelegramUsernames: ['rith_shees', 'rith-shess', 'rithshees', 'Skybalsupport'],
+  authorizedTelegramUsernames: ['rith_shees', 'rith-shess', 'rithshees', 'rithilysm', 'Skybalsupport'],
 };
 
 function getStoredProducts(): Product[] {
@@ -60,12 +60,16 @@ function saveStoredProducts(products: Product[]) {
  */
 export async function sendTelegramOrderAlert(order: Order, settings: CompanySettings): Promise<{ success: boolean; message?: string }> {
   const token = settings.telegramBotToken || import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  const chatId = settings.salesTelegramChatId || settings.salesTelegramAccount;
+  const rawChatId = settings.salesTelegramChatId || settings.salesTelegramAccount || '1275900952';
+  const chatIds = rawChatId
+    .split(',')
+    .map((c) => c.trim())
+    .filter(Boolean);
 
   if (!token) {
     return { success: false, message: 'Telegram Bot Token is not configured in Admin Settings.' };
   }
-  if (!chatId) {
+  if (chatIds.length === 0) {
     return { success: false, message: 'Sales Chat ID is not configured in Admin Settings.' };
   }
 
@@ -105,57 +109,62 @@ export async function sendTelegramOrderAlert(order: Order, settings: CompanySett
     ]);
   }
 
-  try {
-    // If order has payment proof screenshot
-    if (order.paymentProofUrl && order.paymentProofUrl.startsWith('data:image/')) {
-      const matches = order.paymentProofUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-      if (matches && matches.length === 3) {
-        const mimeType = matches[1];
-        const byteCharacters = atob(matches[2]);
-        const byteNumbers = new Array(byteCharacters.length);
-        for (let i = 0; i < byteCharacters.length; i++) {
-          byteNumbers[i] = byteCharacters.charCodeAt(i);
-        }
-        const byteArray = new Uint8Array(byteNumbers);
-        const blob = new Blob([byteArray], { type: mimeType });
+  let anySuccess = false;
 
-        const formData = new FormData();
-        formData.append('chat_id', chatId);
-        formData.append('caption', captionText);
-        formData.append('parse_mode', 'HTML');
-        formData.append('photo', blob, 'receipt.jpg');
-        if (inlineKeyboard.length > 0) {
-          formData.append('reply_markup', JSON.stringify({ inline_keyboard: inlineKeyboard }));
-        }
+  for (const chatId of chatIds) {
+    try {
+      if (order.paymentProofUrl && order.paymentProofUrl.startsWith('data:image/')) {
+        const matches = order.paymentProofUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+        if (matches && matches.length === 3) {
+          const mimeType = matches[1];
+          const byteCharacters = atob(matches[2]);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { type: mimeType });
 
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-          method: 'POST',
-          body: formData,
-        });
-        const json = await res.json();
-        if (json.ok) return { success: true };
-        console.warn('sendPhoto error, retrying as text message:', json.description);
+          const formData = new FormData();
+          formData.append('chat_id', chatId);
+          formData.append('caption', captionText);
+          formData.append('parse_mode', 'HTML');
+          formData.append('photo', blob, 'receipt.jpg');
+          if (inlineKeyboard.length > 0) {
+            formData.append('reply_markup', JSON.stringify({ inline_keyboard: inlineKeyboard }));
+          }
+
+          const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+            method: 'POST',
+            body: formData,
+          });
+          const json = await res.json();
+          if (json.ok) {
+            anySuccess = true;
+            continue;
+          }
+        }
       }
-    }
 
-    // Text fallback
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: captionText,
-        parse_mode: 'HTML',
-        reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined,
-      }),
-    });
-    const json = await res.json();
-    if (json.ok) return { success: true };
-    return { success: false, message: json.description || 'Failed to send message via Telegram' };
-  } catch (err: any) {
-    console.error('Telegram notification network error:', err);
-    return { success: false, message: err.message || 'Network error contacting Telegram API' };
+      // Text fallback
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: captionText,
+          parse_mode: 'HTML',
+          reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined,
+        }),
+      });
+      const json = await res.json();
+      if (json.ok) anySuccess = true;
+    } catch (e) {
+      console.warn(`Failed sending alert to ${chatId}:`, e);
+    }
   }
+
+  return { success: anySuccess };
 }
 
 /**
