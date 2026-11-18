@@ -16,6 +16,8 @@ export const defaultCompanySettings: CompanySettings = {
   phoneNumber: '+855 (0) 23 999 888 / +855 (0) 12 345 678',
   telegramSupportUser: 'Skybalsupport',
   salesTelegramAccount: '@Skybalsupport',
+  telegramBotToken: '',
+  salesTelegramChatId: '',
   facebookUrl: 'https://facebook.com/infoposhardware',
   showroomAddress: 'Building 48, Blvd. Mao Tse Toung, Chamkarmon, Phnom Penh, Cambodia',
   workingHours: 'Monday – Saturday: 8:00 AM – 5:30 PM',
@@ -49,6 +51,155 @@ function saveStoredProducts(products: Product[]) {
     localStorage.setItem(PRODUCTS_STORAGE_KEY, JSON.stringify(products));
   } catch (e) {
     console.warn('Failed writing stored products:', e);
+  }
+}
+
+/**
+ * Direct Telegram Bot API Alert Sender
+ * Can be called directly from frontend to send alerts to the sales team chat
+ */
+export async function sendTelegramOrderAlert(order: Order, settings: CompanySettings): Promise<{ success: boolean; message?: string }> {
+  const token = settings.telegramBotToken || import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+  const chatId = settings.salesTelegramChatId || settings.salesTelegramAccount;
+
+  if (!token) {
+    return { success: false, message: 'Telegram Bot Token is not configured in Admin Settings.' };
+  }
+  if (!chatId) {
+    return { success: false, message: 'Sales Chat ID is not configured in Admin Settings.' };
+  }
+
+  const itemsList = order.items
+    .map((item) => `• ${item.quantity}x ${item.product.name.en} ($${(item.product.price * item.quantity).toFixed(2)})`)
+    .join('\n');
+
+  const customerTelegram = order.customer.telegramUsername ? ` (${order.customer.telegramUsername})` : '';
+  const gpsInfo = order.customer.googleMapsUrl
+    ? `\n🗺️ <b>GPS Map:</b> <a href="${order.customer.googleMapsUrl}">Open Google Maps</a>`
+    : '';
+
+  const captionText =
+    `🔔 <b>NEW HARDWARE ORDER RECEIVED!</b>\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🔖 <b>Order ID:</b> <code>${order.orderNumber}</code>\n` +
+    `👤 <b>Customer:</b> ${order.customer.fullName}${customerTelegram}\n` +
+    `📱 <b>Phone:</b> <a href="tel:${order.customer.phoneNumber}">${order.customer.phoneNumber}</a>\n` +
+    `📍 <b>Delivery:</b> ${order.customer.detailedAddress}, ${order.customer.provinceOrCity}${gpsInfo}\n` +
+    `${order.customer.orderNotes ? `📝 <b>Note:</b> ${order.customer.orderNotes}\n` : ''}` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `🛒 <b>Hardware Items:</b>\n${itemsList}\n` +
+    `━━━━━━━━━━━━━━━━━━━━\n` +
+    `💰 <b>Total Amount:</b> <b>$${order.totalAmount.toFixed(2)} USD</b>\n` +
+    `💳 <b>Payment:</b> ${order.paymentMethod.toUpperCase().replace('_', ' ')}\n` +
+    `⚡ <b>Status:</b> ⏳ <b>Pending Verification</b>`;
+
+  const inlineKeyboard: any[] = [];
+  if (order.customer.googleMapsUrl) {
+    inlineKeyboard.push([
+      { text: '📍 Open Customer GPS Map', url: order.customer.googleMapsUrl },
+    ]);
+  }
+
+  try {
+    // If order has payment proof screenshot
+    if (order.paymentProofUrl && order.paymentProofUrl.startsWith('data:image/')) {
+      const matches = order.paymentProofUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
+      if (matches && matches.length === 3) {
+        const mimeType = matches[1];
+        const byteCharacters = atob(matches[2]);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: mimeType });
+
+        const formData = new FormData();
+        formData.append('chat_id', chatId);
+        formData.append('caption', captionText);
+        formData.append('parse_mode', 'HTML');
+        formData.append('photo', blob, 'receipt.jpg');
+        if (inlineKeyboard.length > 0) {
+          formData.append('reply_markup', JSON.stringify({ inline_keyboard: inlineKeyboard }));
+        }
+
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
+          method: 'POST',
+          body: formData,
+        });
+        const json = await res.json();
+        if (json.ok) return { success: true };
+        console.warn('sendPhoto error, retrying as text message:', json.description);
+      }
+    }
+
+    // Text fallback
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: captionText,
+        parse_mode: 'HTML',
+        reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined,
+      }),
+    });
+    const json = await res.json();
+    if (json.ok) return { success: true };
+    return { success: false, message: json.description || 'Failed to send message via Telegram' };
+  } catch (err: any) {
+    console.error('Telegram notification network error:', err);
+    return { success: false, message: err.message || 'Network error contacting Telegram API' };
+  }
+}
+
+/**
+ * Direct Telegram Bot API Alert to the Customer when Order is Verified / Rejected
+ */
+export async function sendCustomerTelegramAlert(
+  order: Order,
+  status: PaymentVerificationStatus,
+  settings: CompanySettings
+): Promise<boolean> {
+  const token = settings.telegramBotToken || import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
+  if (!token || !order.telegramUserId) return false;
+
+  const isApproval = status === 'verified';
+  let customerMessage = '';
+
+  if (isApproval) {
+    customerMessage =
+      `🎉 <b>PAYMENT CONFIRMED!</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `Dear <b>${order.customer.fullName}</b>,\n\n` +
+      `Your payment for Order <code>#${order.orderNumber}</code> ($${order.totalAmount.toFixed(2)} USD) has been <b>VERIFIED & APPROVED</b> by INFO POS Hardware! ✅\n\n` +
+      `📦 Your hardware order is being prepared for immediate dispatch to:\n` +
+      `📍 <i>${order.customer.detailedAddress}, ${order.customer.provinceOrCity}</i>\n\n` +
+      `📞 Hotline: <b>${settings.phoneNumber}</b>\n\n` +
+      `Thank you for your business!`;
+  } else {
+    customerMessage =
+      `⚠️ <b>PAYMENT VERIFICATION NOTICE</b>\n` +
+      `━━━━━━━━━━━━━━━━━━━━\n` +
+      `Dear <b>${order.customer.fullName}</b>,\n\n` +
+      `Our sales team reviewed Order <code>#${order.orderNumber}</code> but could <b>not verify</b> your payment transfer receipt. ❌\n\n` +
+      `Please contact our sales team directly at @${settings.telegramSupportUser.replace('@', '')} or call <b>${settings.phoneNumber}</b>.`;
+  }
+
+  try {
+    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: order.telegramUserId,
+        text: customerMessage,
+        parse_mode: 'HTML',
+      }),
+    });
+    const json = await res.json();
+    return json.ok;
+  } catch {
+    return false;
   }
 }
 
@@ -209,11 +360,13 @@ export const apiService = {
   },
 
   /**
-   * Submit an order
+   * Submit an order & notify Telegram
    */
   async submitOrder(orderPayload: Omit<Order, 'id' | 'orderNumber' | 'createdAt' | 'paymentVerificationStatus'>): Promise<Order> {
+    const currentSettings = await this.getSettings();
+
     if (USE_MOCK) {
-      await new Promise((r) => setTimeout(r, 600));
+      await new Promise((r) => setTimeout(r, 500));
 
       const timestamp = new Date();
       const datePart = timestamp.toISOString().slice(2, 10).replace(/-/g, '');
@@ -236,6 +389,11 @@ export const apiService = {
         console.warn('Unable to persist order to localStorage:', e);
       }
 
+      // Send alert directly to Telegram Sales account / group!
+      sendTelegramOrderAlert(createdOrder, currentSettings).catch((err) =>
+        console.warn('Could not send Telegram notification:', err)
+      );
+
       return createdOrder;
     }
 
@@ -257,10 +415,10 @@ export const apiService = {
         existing.unshift(backendOrder);
         localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50)));
       } catch {}
+
       return backendOrder;
     } catch (e) {
-      console.warn('Backend call failed, falling back to local storage:', e);
-      // Fallback to local order creation
+      console.warn('Backend call failed, using client storage fallback:', e);
       const timestamp = new Date();
       const datePart = timestamp.toISOString().slice(2, 10).replace(/-/g, '');
       const randomPart = Math.floor(1000 + Math.random() * 9000);
@@ -276,6 +434,8 @@ export const apiService = {
         existing.unshift(fallbackOrder);
         localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(existing.slice(0, 50)));
       } catch {}
+
+      sendTelegramOrderAlert(fallbackOrder, currentSettings).catch(() => {});
       return fallbackOrder;
     }
   },
@@ -300,6 +460,8 @@ export const apiService = {
    * Update order verification status (Admin)
    */
   async updateOrderStatus(orderId: string, status: PaymentVerificationStatus): Promise<boolean> {
+    const settings = await this.getSettings();
+
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 60));
       try {
@@ -308,6 +470,9 @@ export const apiService = {
         if (idx !== -1) {
           orders[idx].paymentVerificationStatus = status;
           localStorage.setItem(ORDERS_STORAGE_KEY, JSON.stringify(orders));
+
+          // Alert customer on Telegram!
+          sendCustomerTelegramAlert(orders[idx], status, settings).catch(() => {});
           return true;
         }
       } catch {}

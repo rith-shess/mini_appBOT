@@ -68,6 +68,8 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Company Settings State
   const [settings, setSettings] = useState<CompanySettings>(defaultCompanySettings);
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [testSending, setTestSending] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
   // Product Form State (for adding or editing)
   const [formNameEn, setFormNameEn] = useState('');
@@ -285,6 +287,67 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
     if (onRefreshData) onRefreshData();
+  };
+
+  // Test Telegram Alert
+  const handleTestTelegramAlert = async () => {
+    setTestSending(true);
+    setTestResult(null);
+    triggerHaptic('medium');
+
+    const token = settings.telegramBotToken?.trim();
+    const chatId = settings.salesTelegramChatId?.trim() || settings.salesTelegramAccount?.trim();
+
+    if (!token) {
+      setTestResult({
+        success: false,
+        message: '⚠️ Telegram Bot Token is missing. Paste your Bot Token below first.',
+      });
+      setTestSending(false);
+      return;
+    }
+    if (!chatId) {
+      setTestResult({
+        success: false,
+        message: '⚠️ Sales Chat ID is missing. Enter your Chat ID or Username below.',
+      });
+      setTestSending(false);
+      return;
+    }
+
+    try {
+      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          chat_id: chatId,
+          text: `🔔 <b>TEST ALERT from INFO POS Hardware</b>\n━━━━━━━━━━━━━━━━━━━━\nYour Telegram Bot is successfully connected to your sales desk!\n\nWhen customers place orders in the Mini App, payment receipts, customer GPS map links, and order details will arrive here in real time.`,
+          parse_mode: 'HTML',
+        }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        setTestResult({
+          success: true,
+          message: `🎉 Success! Test alert was delivered to ${chatId}. Check your Telegram!`,
+        });
+        triggerHaptic('success');
+      } else {
+        setTestResult({
+          success: false,
+          message: `Telegram API Error: "${data.description}". (Tip: Ensure you have sent /start to your bot in Telegram first).`,
+        });
+        triggerHaptic('error');
+      }
+    } catch (e: any) {
+      setTestResult({
+        success: false,
+        message: e.message || 'Network error reaching api.telegram.org.',
+      });
+      triggerHaptic('error');
+    } finally {
+      setTestSending(false);
+    }
   };
 
   // Filtered Products for Admin Table
@@ -956,22 +1019,92 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               />
             </div>
 
-            {/* Sales Verification Telegram Account */}
-            <div className="p-3.5 rounded-2xl bg-brand-50 border border-brand-200 space-y-1.5">
-              <label className="block font-bold text-navy-900 flex items-center gap-1.5 text-xs">
-                <Send className="w-3.5 h-3.5 text-brand-600" />
-                <span>Sales Telegram Account for Order Verification</span>
-              </label>
-              <input
-                type="text"
-                value={settings.salesTelegramAccount || ''}
-                onChange={(e) => setSettings({ ...settings, salesTelegramAccount: e.target.value })}
-                placeholder="e.g. @Skybalsupport"
-                className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-bold text-brand-800 focus:outline-none focus:ring-2 focus:ring-brand-500/20"
-              />
+            {/* Telegram Sales Bot Live Notification Settings */}
+            <div className="p-4 rounded-2xl bg-brand-50/80 border border-brand-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-navy-900 flex items-center gap-1.5 text-xs">
+                  <Send className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Telegram Sales Bot Live Alert Settings</span>
+                </label>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-200/60 text-brand-800 font-bold">
+                  Instant Delivery
+                </span>
+              </div>
+
+              {/* Bot Token */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Telegram Bot Token (from @BotFather)
+                </label>
+                <input
+                  type="password"
+                  value={settings.telegramBotToken || ''}
+                  onChange={(e) => setSettings({ ...settings, telegramBotToken: e.target.value })}
+                  placeholder="e.g. 7123456789:AAH_..."
+                  className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                />
+                <p className="text-[10px] text-slate-500 mt-0.5">
+                  The API token given by @BotFather when you created @InfoPOSMini_StoreBot.
+                </p>
+              </div>
+
+              {/* Sales Chat ID or Username */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Sales Username
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.salesTelegramAccount || ''}
+                    onChange={(e) => setSettings({ ...settings, salesTelegramAccount: e.target.value })}
+                    placeholder="e.g. @Skybalsupport"
+                    className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-bold text-brand-800 text-xs focus:outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Sales Chat ID (Numeric)
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.salesTelegramChatId || ''}
+                    onChange={(e) => setSettings({ ...settings, salesTelegramChatId: e.target.value })}
+                    placeholder="e.g. 123456789 (from @userinfobot)"
+                    className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-mono text-xs focus:outline-none"
+                  />
+                </div>
+              </div>
+
               <p className="text-[11px] text-slate-500">
-                This Telegram account receives order alerts, customer payment receipts, GPS maps, and the [Approve] / [Reject] buttons. Current: <strong className="text-navy-900">{settings.salesTelegramAccount || '@Skybalsupport'}</strong>
+                To receive alerts, open <strong className="text-navy-900">@InfoPOSMini_StoreBot</strong> in Telegram and click <strong className="text-navy-900">/start</strong> once. (Get numeric chat ID from <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline font-bold text-brand-700">@userinfobot</a>).
               </p>
+
+              {/* Test Button & Result Banner */}
+              <div className="pt-1">
+                <button
+                  type="button"
+                  onClick={handleTestTelegramAlert}
+                  disabled={testSending}
+                  className="w-full py-2 px-3 rounded-xl bg-brand-600 hover:bg-brand-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-xs transition-all active:scale-95 disabled:opacity-50"
+                >
+                  <Send className={`w-3.5 h-3.5 ${testSending ? 'animate-bounce' : ''}`} />
+                  <span>{testSending ? 'Sending Test Message to Telegram...' : '🧪 Send Test Alert to Telegram'}</span>
+                </button>
+
+                {testResult && (
+                  <div
+                    className={`mt-2 p-2.5 rounded-xl text-xs font-semibold ${
+                      testResult.success
+                        ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                        : 'bg-red-50 text-red-800 border border-red-200'
+                    }`}
+                  >
+                    {testResult.message}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
