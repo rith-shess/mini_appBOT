@@ -26,6 +26,8 @@ import {
   CheckCircle2,
   XCircle,
   ArrowLeft,
+  CreditCard,
+  QrCode,
 } from 'lucide-react';
 import { Product, Order, CompanySettings, CategoryId, PaymentVerificationStatus, ActiveScreen } from '../types';
 import { apiService, defaultCompanySettings } from '../services/api';
@@ -53,7 +55,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Active Admin Tab
-  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'settings'>('products');
+  const [activeTab, setActiveTab] = useState<'products' | 'orders' | 'payments' | 'settings'>('products');
 
   // Products State
   const [products, setProducts] = useState<Product[]>([]);
@@ -88,6 +90,44 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [formIsLatest, setFormIsLatest] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const abaQrInputRef = useRef<HTMLInputElement | null>(null);
+  const bakongQrInputRef = useRef<HTMLInputElement | null>(null);
+  const kbQrInputRef = useRef<HTMLInputElement | null>(null);
+
+  const updatePaymentMethodConfig = (
+    method: 'aba' | 'bakong' | 'kb',
+    field: string,
+    value: any
+  ) => {
+    setSettings((prev) => {
+      const pm = prev.paymentMethods || defaultCompanySettings.paymentMethods!;
+      const current = pm[method] || defaultCompanySettings.paymentMethods![method];
+      return {
+        ...prev,
+        paymentMethods: {
+          ...pm,
+          [method]: {
+            ...current,
+            [field]: value,
+          },
+        },
+      };
+    });
+  };
+
+  const handleQrUpload = (method: 'aba' | 'bakong' | 'kb', file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, WEBP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      updatePaymentMethodConfig(method, 'qrImageUrl', dataUrl);
+      triggerHaptic('light');
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Load initial settings and check telegram username auto-auth
   useEffect(() => {
@@ -498,6 +538,21 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         >
           <ShoppingBag className="w-3.5 h-3.5" />
           <span>Orders ({orders.length})</span>
+        </button>
+
+        <button
+          onClick={() => {
+            setActiveTab('payments');
+            triggerHaptic('light');
+          }}
+          className={`flex-1 py-2 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+            activeTab === 'payments'
+              ? 'bg-navy-900 text-white shadow-xs'
+              : 'text-slate-600 hover:text-navy-900'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5" />
+          <span>Payments</span>
         </button>
 
         <button
@@ -984,6 +1039,383 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* ----------------------------------------------------------- */}
+      {/* TAB: PAYMENT METHODS CONFIGURATION (1: ABA, 2: Bakong, 3: KB)*/}
+      {/* ----------------------------------------------------------- */}
+      {activeTab === 'payments' && (
+        <div className="space-y-4">
+          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-4 text-xs">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <div>
+                <h2 className="text-sm font-black text-navy-900 uppercase tracking-wide flex items-center gap-2">
+                  <CreditCard className="w-4 h-4 text-brand-600" />
+                  <span>3 Payment Methods Setup</span>
+                </h2>
+                <p className="text-[11px] text-slate-500 mt-0.5">
+                  Configure your 3 bank payment accounts. Customers will see your bank QR codes and account details at checkout.
+                </p>
+              </div>
+              {settingsSaved && (
+                <span className="text-xs text-emerald-600 font-bold flex items-center gap-1">
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Saved!</span>
+                </span>
+              )}
+            </div>
+
+            {/* Hidden native file inputs for QR upload */}
+            <input
+              ref={abaQrInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleQrUpload('aba', f);
+              }}
+            />
+            <input
+              ref={bakongQrInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleQrUpload('bakong', f);
+              }}
+            />
+            <input
+              ref={kbQrInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) handleQrUpload('kb', f);
+              }}
+            />
+
+            {/* Method 1: ABA Bank */}
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-[#005f82] text-white text-[11px] font-black">
+                    1: ABA
+                  </span>
+                  <span className="font-bold text-navy-900 text-xs">ABA Bank Payment</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs">
+                  <input
+                    type="checkbox"
+                    checked={settings.paymentMethods?.aba?.enabled ?? true}
+                    onChange={(e) => updatePaymentMethodConfig('aba', 'enabled', e.target.checked)}
+                    className="rounded text-brand-600"
+                  />
+                  <span>Active</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    ABA Account Name
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.paymentMethods?.aba?.accountName || ''}
+                    onChange={(e) => updatePaymentMethodConfig('aba', 'accountName', e.target.value)}
+                    placeholder="e.g. INFO POS HARDWARE (USD)"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    ABA Account Number
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.paymentMethods?.aba?.accountNumber || ''}
+                    onChange={(e) => updatePaymentMethodConfig('aba', 'accountNumber', e.target.value)}
+                    placeholder="e.g. 001 888 999 (USD)"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-mono font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* ABA QR Code Upload & Preview */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  ABA QR Code Picture
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                    {settings.paymentMethods?.aba?.qrImageUrl ? (
+                      <img
+                        src={settings.paymentMethods.aba.qrImageUrl}
+                        alt="ABA QR"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <QrCode className="w-8 h-8 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => abaQrInputRef.current?.click()}
+                      className="py-1.5 px-3 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload ABA QR Picture</span>
+                    </button>
+                    {settings.paymentMethods?.aba?.qrImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => updatePaymentMethodConfig('aba', 'qrImageUrl', '')}
+                        className="text-red-500 hover:text-red-700 text-[11px] font-semibold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remove Picture</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Customer Instructions
+                </label>
+                <input
+                  type="text"
+                  value={settings.paymentMethods?.aba?.instructions || ''}
+                  onChange={(e) => updatePaymentMethodConfig('aba', 'instructions', e.target.value)}
+                  placeholder="Scan with ABA Mobile or enter account number"
+                  className="w-full py-1.5 px-3 bg-white border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Method 2: Bakong KHQR */}
+            <div className="p-4 rounded-2xl bg-red-50/40 border border-red-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-red-600 text-white text-[11px] font-black">
+                    2: Bakong KHQR
+                  </span>
+                  <span className="font-bold text-navy-900 text-xs">National Bakong KHQR</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs">
+                  <input
+                    type="checkbox"
+                    checked={settings.paymentMethods?.bakong?.enabled ?? true}
+                    onChange={(e) => updatePaymentMethodConfig('bakong', 'enabled', e.target.checked)}
+                    className="rounded text-brand-600"
+                  />
+                  <span>Active</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Bakong Account / Merchant Name
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.paymentMethods?.bakong?.accountName || ''}
+                    onChange={(e) => updatePaymentMethodConfig('bakong', 'accountName', e.target.value)}
+                    placeholder="e.g. INFO POS HARDWARE (USD)"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Bakong ID
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.paymentMethods?.bakong?.accountNumber || ''}
+                    onChange={(e) => updatePaymentMethodConfig('bakong', 'accountNumber', e.target.value)}
+                    placeholder="e.g. infopos@bk"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-mono font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* Bakong QR Code Upload & Preview */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Bakong KHQR Code Picture
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                    {settings.paymentMethods?.bakong?.qrImageUrl ? (
+                      <img
+                        src={settings.paymentMethods.bakong.qrImageUrl}
+                        alt="Bakong QR"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <QrCode className="w-8 h-8 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => bakongQrInputRef.current?.click()}
+                      className="py-1.5 px-3 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload Bakong QR Picture</span>
+                    </button>
+                    {settings.paymentMethods?.bakong?.qrImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => updatePaymentMethodConfig('bakong', 'qrImageUrl', '')}
+                        className="text-red-500 hover:text-red-700 text-[11px] font-semibold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remove Picture</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Customer Instructions
+                </label>
+                <input
+                  type="text"
+                  value={settings.paymentMethods?.bakong?.instructions || ''}
+                  onChange={(e) => updatePaymentMethodConfig('bakong', 'instructions', e.target.value)}
+                  placeholder="Scan with any Bakong-supported banking app in Cambodia"
+                  className="w-full py-1.5 px-3 bg-white border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Method 3: KB PRASAC Bank */}
+            <div className="p-4 rounded-2xl bg-amber-50/40 border border-amber-200/80 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="px-2.5 py-0.5 rounded-lg bg-amber-600 text-white text-[11px] font-black">
+                    3: KB
+                  </span>
+                  <span className="font-bold text-navy-900 text-xs">KB (KB PRASAC Bank)</span>
+                </div>
+                <label className="flex items-center gap-2 cursor-pointer font-bold text-xs">
+                  <input
+                    type="checkbox"
+                    checked={settings.paymentMethods?.kb?.enabled ?? true}
+                    onChange={(e) => updatePaymentMethodConfig('kb', 'enabled', e.target.checked)}
+                    className="rounded text-brand-600"
+                  />
+                  <span>Active</span>
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    KB Account Name
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.paymentMethods?.kb?.accountName || ''}
+                    onChange={(e) => updatePaymentMethodConfig('kb', 'accountName', e.target.value)}
+                    placeholder="e.g. INFO POS HARDWARE (USD)"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    KB Account Number
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.paymentMethods?.kb?.accountNumber || ''}
+                    onChange={(e) => updatePaymentMethodConfig('kb', 'accountNumber', e.target.value)}
+                    placeholder="e.g. 100 234 567 890 (USD)"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-mono font-bold text-xs"
+                  />
+                </div>
+              </div>
+
+              {/* KB QR Code Upload & Preview */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  KB QR Code Picture
+                </label>
+                <div className="flex items-center gap-3">
+                  <div className="w-20 h-20 rounded-xl bg-white border border-slate-200 overflow-hidden flex items-center justify-center p-1 shrink-0">
+                    {settings.paymentMethods?.kb?.qrImageUrl ? (
+                      <img
+                        src={settings.paymentMethods.kb.qrImageUrl}
+                        alt="KB QR"
+                        className="w-full h-full object-contain"
+                      />
+                    ) : (
+                      <QrCode className="w-8 h-8 text-slate-300" />
+                    )}
+                  </div>
+                  <div className="space-y-1.5 flex-1">
+                    <button
+                      type="button"
+                      onClick={() => kbQrInputRef.current?.click()}
+                      className="py-1.5 px-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-[11px] flex items-center gap-1.5 transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      <span>Upload KB QR Picture</span>
+                    </button>
+                    {settings.paymentMethods?.kb?.qrImageUrl && (
+                      <button
+                        type="button"
+                        onClick={() => updatePaymentMethodConfig('kb', 'qrImageUrl', '')}
+                        className="text-red-500 hover:text-red-700 text-[11px] font-semibold flex items-center gap-1"
+                      >
+                        <Trash2 className="w-3 h-3" />
+                        <span>Remove Picture</span>
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Customer Instructions
+                </label>
+                <input
+                  type="text"
+                  value={settings.paymentMethods?.kb?.instructions || ''}
+                  onChange={(e) => updatePaymentMethodConfig('kb', 'instructions', e.target.value)}
+                  placeholder="Transfer via KB PRASAC / KB Mobile app"
+                  className="w-full py-1.5 px-3 bg-white border border-slate-200 rounded-xl text-xs"
+                />
+              </div>
+            </div>
+
+            {/* Save Button */}
+            <div className="pt-3 border-t border-slate-100 flex justify-end">
+              <button
+                type="button"
+                onClick={handleSaveSettings}
+                className="py-2.5 px-6 rounded-xl bg-navy-900 hover:bg-navy-800 text-white font-bold flex items-center gap-1.5 shadow-md active:scale-95"
+              >
+                <Save className="w-4 h-4 text-emerald-400" />
+                <span>Save Payment Methods</span>
+              </button>
+            </div>
+          </div>
         </div>
       )}
 

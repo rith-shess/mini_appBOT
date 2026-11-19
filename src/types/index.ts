@@ -73,9 +73,30 @@ export interface CustomerInfo {
   googleMapsUrl?: string;
 }
 
-export type PaymentMethod = 'aba_khqr' | 'bank_transfer' | 'cash_on_delivery';
+export type PaymentMethod =
+  | 'aba'
+  | 'bakong_khqr'
+  | 'kb'
+  | 'aba_khqr'
+  | 'bank_transfer'
+  | 'cash_on_delivery';
 
 export type PaymentVerificationStatus = 'pending_verification' | 'verified' | 'rejected';
+
+export interface PaymentAccountConfig {
+  enabled: boolean;
+  bankName: string;
+  accountName: string;
+  accountNumber: string;
+  qrImageUrl?: string;
+  instructions?: string;
+}
+
+export interface PaymentMethodsSettings {
+  aba: PaymentAccountConfig;
+  bakong: PaymentAccountConfig;
+  kb: PaymentAccountConfig;
+}
 
 export interface Order {
   id: string;
@@ -111,6 +132,7 @@ export interface CompanySettings {
   khqrQrImageUrl?: string;
   adminPin: string;
   authorizedTelegramUsernames: string[];
+  paymentMethods?: PaymentMethodsSettings;
 }
 
 export type Language = 'en' | 'km';

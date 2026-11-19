@@ -1,4 +1,4 @@
-import { Order, Product, Category, CategoryId, CompanySettings, PaymentVerificationStatus } from '../types';
+import { Order, Product, Category, CategoryId, CompanySettings, PaymentVerificationStatus, PaymentMethodsSettings, PaymentMethod } from '../types';
 import { mockProducts, categories } from '../data/mockProducts';
 
 // Base URL for future Cloudflare Workers API backend
@@ -9,6 +9,33 @@ const USE_MOCK = !API_BASE_URL;
 const PRODUCTS_STORAGE_KEY = 'info_pos_custom_products';
 const ORDERS_STORAGE_KEY = 'info_pos_orders';
 const SETTINGS_STORAGE_KEY = 'info_pos_company_settings';
+
+export const defaultPaymentMethods: PaymentMethodsSettings = {
+  aba: {
+    enabled: true,
+    bankName: 'ABA Bank',
+    accountName: 'INFO POS HARDWARE (USD)',
+    accountNumber: '001 888 999 (USD)',
+    qrImageUrl: '',
+    instructions: 'Scan with ABA Mobile or transfer to account number',
+  },
+  bakong: {
+    enabled: true,
+    bankName: 'Bakong KHQR',
+    accountName: 'INFO POS HARDWARE (USD)',
+    accountNumber: 'infopos@bk (National KHQR)',
+    qrImageUrl: '',
+    instructions: 'Scan via any Bakong-supported banking app in Cambodia',
+  },
+  kb: {
+    enabled: true,
+    bankName: 'KB PRASAC Bank',
+    accountName: 'INFO POS HARDWARE (USD)',
+    accountNumber: '100 234 567 890 (USD)',
+    qrImageUrl: '',
+    instructions: 'Transfer via KB PRASAC / KB Mobile app',
+  },
+};
 
 export const defaultCompanySettings: CompanySettings = {
   companyName: 'INFO POS Hardware',
@@ -25,6 +52,7 @@ export const defaultCompanySettings: CompanySettings = {
   khqrQrImageUrl: '',
   adminPin: '8888',
   authorizedTelegramUsernames: ['rith_shees', 'rith-shess', 'rithshees', 'rithilysm', 'Skybalsupport'],
+  paymentMethods: defaultPaymentMethods,
 };
 
 function getStoredProducts(): Product[] {
@@ -52,6 +80,13 @@ function saveStoredProducts(products: Product[]) {
   } catch (e) {
     console.warn('Failed writing stored products:', e);
   }
+}
+
+export function formatPaymentMethodName(pm: PaymentMethod): string {
+  if (pm === 'aba') return '1: ABA Bank';
+  if (pm === 'bakong_khqr' || pm === 'aba_khqr') return '2: Bakong KHQR';
+  if (pm === 'kb' || pm === 'bank_transfer') return '3: KB (KB PRASAC Bank)';
+  return String(pm).toUpperCase().replace('_', ' ');
 }
 
 /**
@@ -93,13 +128,19 @@ export async function sendTelegramOrderAlert(order: Order, settings: CompanySett
     `🛒 <b>Hardware Items:</b>\n${itemsList}\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `💰 <b>Total Amount:</b> <b>$${order.totalAmount.toFixed(2)} USD</b>\n` +
-    `💳 <b>Payment:</b> ${order.paymentMethod.toUpperCase().replace('_', ' ')}\n` +
+    `💳 <b>Payment:</b> ${formatPaymentMethodName(order.paymentMethod)}\n` +
     `⚡ <b>Status:</b> ⏳ <b>Pending Verification</b>`;
 
   const inlineKeyboard: any[] = [
     [
-      { text: '✅ Approve & Verify Payment', callback_data: `verify:${order.id}` },
-      { text: '❌ Reject Payment', callback_data: `reject:${order.id}` },
+      {
+        text: '✅ Approve & Verify Payment',
+        callback_data: `verify:${order.orderNumber}:${order.telegramUserId || ''}`,
+      },
+      {
+        text: '❌ Reject Payment',
+        callback_data: `reject:${order.orderNumber}:${order.telegramUserId || ''}`,
+      },
     ],
   ];
   if (order.customer.googleMapsUrl) {
@@ -174,22 +215,30 @@ export async function sendCustomerTelegramAlert(
   status: PaymentVerificationStatus,
   settings: CompanySettings
 ): Promise<boolean> {
-  const token = settings.telegramBotToken || import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  if (!token || !order.telegramUserId) return false;
+  const token = settings.telegramBotToken || '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+  
+  let targetChatId = order.telegramUserId;
+  if (!targetChatId && order.customer.telegramUsername) {
+    const cleanUser = order.customer.telegramUsername.replace('@', '').toLowerCase();
+    if (cleanUser === 'rithilysm' || cleanUser === 'rith_shees') targetChatId = '1275900952';
+    if (cleanUser === 'skybalsupport') targetChatId = '1256184682';
+  }
+
+  if (!token || !targetChatId) return false;
 
   const isApproval = status === 'verified';
   let customerMessage = '';
 
   if (isApproval) {
     customerMessage =
-      `🎉 <b>PAYMENT CONFIRMED!</b>\n` +
+      `🎉 <b>PAYMENT CONFIRMED & APPROVED!</b>\n` +
       `━━━━━━━━━━━━━━━━━━━━\n` +
       `Dear <b>${order.customer.fullName}</b>,\n\n` +
       `Your payment for Order <code>#${order.orderNumber}</code> ($${order.totalAmount.toFixed(2)} USD) has been <b>VERIFIED & APPROVED</b> by INFO POS Hardware! ✅\n\n` +
       `📦 Your hardware order is being prepared for immediate dispatch to:\n` +
       `📍 <i>${order.customer.detailedAddress}, ${order.customer.provinceOrCity}</i>\n\n` +
       `📞 Hotline: <b>${settings.phoneNumber}</b>\n\n` +
-      `Thank you for your business!`;
+      `Thank you for shopping with INFO POS Hardware!`;
   } else {
     customerMessage =
       `⚠️ <b>PAYMENT VERIFICATION NOTICE</b>\n` +
@@ -204,9 +253,19 @@ export async function sendCustomerTelegramAlert(
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: order.telegramUserId,
+        chat_id: targetChatId,
         text: customerMessage,
         parse_mode: 'HTML',
+        reply_markup: {
+          inline_keyboard: [
+            [
+              {
+                text: '🛒 Open Store',
+                web_app: { url: 'https://mini-app-bot-eight.vercel.app/' },
+              },
+            ],
+          ],
+        },
       }),
     });
     const json = await res.json();
@@ -506,7 +565,17 @@ export const apiService = {
     if (USE_MOCK) {
       try {
         const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-        if (raw) return { ...defaultCompanySettings, ...JSON.parse(raw) };
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          return {
+            ...defaultCompanySettings,
+            ...parsed,
+            paymentMethods: {
+              ...defaultPaymentMethods,
+              ...(parsed.paymentMethods || {}),
+            },
+          };
+        }
       } catch {}
       return defaultCompanySettings;
     }

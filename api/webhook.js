@@ -109,8 +109,12 @@ export default async function handler(req, res) {
       const adminName = cb.from?.username ? `@${cb.from.username}` : (cb.from?.first_name || 'Sales Staff');
 
       if (data.startsWith('verify:')) {
-        const orderId = data.replace('verify:', '');
-        await answerCallback(cb.id, '✅ Payment Verified & Order Approved!');
+        const payload = data.replace('verify:', '');
+        const parts = payload.split(':');
+        const orderNum = parts[0] || 'Order';
+        const customerChatId = parts[1] || '';
+
+        await answerCallback(cb.id, '✅ Payment Verified & Customer Alerted!');
 
         // Update inline buttons on the sales card
         if (salesChatId && messageId) {
@@ -122,14 +126,43 @@ export default async function handler(req, res) {
               message_id: messageId,
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: `✅ VERIFIED & APPROVED by ${adminName}`, callback_data: 'noop' }],
+                  [{ text: `✅ VERIFIED & APPROVED by ${adminName} (Customer Alerted)`, callback_data: 'noop' }],
                 ],
               },
             }),
           });
         }
+
+        // 🔔 Alert the customer directly in Telegram!
+        if (customerChatId && customerChatId !== 'undefined' && customerChatId.trim()) {
+          const customerMsg =
+            `🎉 <b>PAYMENT CONFIRMED & APPROVED!</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `Dear Customer,\n\n` +
+            `Your payment for Order <code>#${orderNum}</code> has been <b>VERIFIED & APPROVED</b> by the INFO POS Hardware sales desk! ✅\n\n` +
+            `📦 Your POS hardware order is being packed and prepared for immediate dispatch.\n\n` +
+            `📞 Hotline: +855 (0) 23 999 888 / @Skybalsupport\n\n` +
+            `Thank you for shopping with INFO POS Hardware!`;
+
+          await sendMessage(customerChatId, customerMsg, {
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  {
+                    text: '🛒 Open Store',
+                    web_app: { url: MINI_APP_URL },
+                  },
+                ],
+              ],
+            },
+          });
+        }
       } else if (data.startsWith('reject:')) {
-        const orderId = data.replace('reject:', '');
+        const payload = data.replace('reject:', '');
+        const parts = payload.split(':');
+        const orderNum = parts[0] || 'Order';
+        const customerChatId = parts[1] || '';
+
         await answerCallback(cb.id, '❌ Order Payment Rejected');
 
         if (salesChatId && messageId) {
@@ -141,11 +174,23 @@ export default async function handler(req, res) {
               message_id: messageId,
               reply_markup: {
                 inline_keyboard: [
-                  [{ text: `❌ REJECTED by ${adminName}`, callback_data: 'noop' }],
+                  [{ text: `❌ REJECTED by ${adminName} (Customer Alerted)`, callback_data: 'noop' }],
                 ],
               },
             }),
           });
+        }
+
+        // 🔔 Alert the customer of payment issue
+        if (customerChatId && customerChatId !== 'undefined' && customerChatId.trim()) {
+          const customerMsg =
+            `⚠️ <b>PAYMENT VERIFICATION NOTICE</b>\n` +
+            `━━━━━━━━━━━━━━━━━━━━\n` +
+            `Dear Customer,\n\n` +
+            `Our sales desk reviewed Order <code>#${orderNum}</code>, but could <b>not verify</b> your payment transfer receipt. ❌\n\n` +
+            `Please check your bank transfer details or contact our sales team directly at @Skybalsupport.`;
+
+          await sendMessage(customerChatId, customerMsg);
         }
       }
 

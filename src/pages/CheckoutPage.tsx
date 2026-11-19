@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   ArrowLeft,
   Upload,
@@ -7,7 +7,7 @@ import {
   AlertTriangle,
   QrCode,
   CreditCard,
-  Banknote,
+  Building2,
   ShieldCheck,
   CheckCircle2,
   Clock,
@@ -15,13 +15,15 @@ import {
   MapPin,
   ExternalLink,
   Navigation,
+  Copy,
+  Check,
 } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useTranslation } from '../hooks/useTranslation';
 import { formatUSD } from '../utils/formatters';
 import { useTelegram } from '../hooks/useTelegram';
-import { apiService } from '../services/api';
-import { PaymentMethod, Order } from '../types';
+import { apiService, defaultCompanySettings } from '../services/api';
+import { PaymentMethod, Order, CompanySettings } from '../types';
 
 interface CheckoutPageProps {
   onBack: () => void;
@@ -61,11 +63,22 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   const { language, t } = useTranslation();
   const { user, triggerHaptic } = useTelegram();
 
+  // Company & Payment Settings
+  const [settings, setSettings] = useState<CompanySettings>(defaultCompanySettings);
+  const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  useEffect(() => {
+    apiService.getSettings().then((s) => setSettings(s));
+  }, []);
+
   // Customer form state
   const [fullName, setFullName] = useState(
     user ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}` : ''
   );
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [telegramUsername, setTelegramUsername] = useState(
+    user?.username ? `@${user.username}` : ''
+  );
   const [provinceOrCity, setProvinceOrCity] = useState('Phnom Penh');
   const [detailedAddress, setDetailedAddress] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
@@ -77,8 +90,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   const [locationSuccessMsg, setLocationSuccessMsg] = useState<string | null>(null);
   const [locationError, setLocationError] = useState<string | null>(null);
 
-  // Payment method
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('aba_khqr');
+  // Payment method (1: ABA, 2: Bakong KHQR, 3: KB)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>('aba');
 
   // Payment proof screenshot state
   const [screenshotPreview, setScreenshotPreview] = useState<string | null>(null);
@@ -87,6 +100,13 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleCopyText = (text: string, fieldId: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedField(fieldId);
+    triggerHaptic('light');
+    setTimeout(() => setCopiedField(null), 2000);
+  };
 
   // Geolocation Handler
   const handleGetCurrentLocation = () => {
@@ -189,8 +209,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
       return;
     }
 
-    // Require screenshot if KHQR or Bank transfer is chosen
-    if (paymentMethod !== 'cash_on_delivery' && !screenshotPreview) {
+    // Require screenshot proof for transfer
+    if (!screenshotPreview) {
       setErrorMessage(t.checkout.paymentProofRequiredWarning);
       return;
     }
@@ -206,7 +226,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
           provinceOrCity,
           detailedAddress: detailedAddress.trim(),
           orderNotes: orderNotes.trim(),
-          telegramUsername: user?.username ? `@${user.username}` : undefined,
+          telegramUsername: telegramUsername.trim() || (user?.username ? `@${user.username}` : undefined),
           latitude: latitude || undefined,
           longitude: longitude || undefined,
           googleMapsUrl:
@@ -294,6 +314,19 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder={t.checkout.phoneNumberPlaceholder}
+                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all font-mono"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-bold text-navy-900 mb-1">
+                Telegram Username (For Bot Order Alerts)
+              </label>
+              <input
+                type="text"
+                value={telegramUsername}
+                onChange={(e) => setTelegramUsername(e.target.value)}
+                placeholder="e.g. @username"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all font-mono"
               />
             </div>
@@ -392,10 +425,10 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
           </h2>
 
           <div className="space-y-2.5">
-            {/* Bakong KHQR / ABA */}
+            {/* Method 1: ABA */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                paymentMethod === 'aba_khqr'
+                paymentMethod === 'aba'
                   ? 'border-brand-500 bg-brand-50/50 shadow-xs'
                   : 'border-slate-200 hover:border-slate-300 bg-white'
               }`}
@@ -403,25 +436,25 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               <input
                 type="radio"
                 name="paymentMethod"
-                checked={paymentMethod === 'aba_khqr'}
-                onChange={() => setPaymentMethod('aba_khqr')}
+                checked={paymentMethod === 'aba'}
+                onChange={() => setPaymentMethod('aba')}
                 className="mt-1 text-brand-600 focus:ring-brand-500"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-navy-900">
-                  <QrCode className="w-4 h-4 text-brand-600 shrink-0" />
-                  <span>{t.checkout.methods.aba_khqr}</span>
+                  <CreditCard className="w-4 h-4 text-cyan-600 shrink-0" />
+                  <span>1: ABA (ABA Bank)</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {t.checkout.methods.aba_khqr_desc}
+                  Transfer via ABA Mobile app or scan ABA QR code
                 </p>
               </div>
             </label>
 
-            {/* Bank Transfer */}
+            {/* Method 2: Bakong KHQR */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                paymentMethod === 'bank_transfer'
+                paymentMethod === 'bakong_khqr'
                   ? 'border-brand-500 bg-brand-50/50 shadow-xs'
                   : 'border-slate-200 hover:border-slate-300 bg-white'
               }`}
@@ -429,25 +462,25 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               <input
                 type="radio"
                 name="paymentMethod"
-                checked={paymentMethod === 'bank_transfer'}
-                onChange={() => setPaymentMethod('bank_transfer')}
+                checked={paymentMethod === 'bakong_khqr'}
+                onChange={() => setPaymentMethod('bakong_khqr')}
                 className="mt-1 text-brand-600 focus:ring-brand-500"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-navy-900">
-                  <CreditCard className="w-4 h-4 text-brand-600 shrink-0" />
-                  <span>{t.checkout.methods.bank_transfer}</span>
+                  <QrCode className="w-4 h-4 text-red-600 shrink-0" />
+                  <span>2: Bakong KHQR</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {t.checkout.methods.bank_transfer_desc}
+                  Scan standard KHQR with any Cambodia banking app
                 </p>
               </div>
             </label>
 
-            {/* Cash on Delivery */}
+            {/* Method 3: KB (KB PRASAC Bank) */}
             <label
               className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
-                paymentMethod === 'cash_on_delivery'
+                paymentMethod === 'kb'
                   ? 'border-brand-500 bg-brand-50/50 shadow-xs'
                   : 'border-slate-200 hover:border-slate-300 bg-white'
               }`}
@@ -455,59 +488,128 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               <input
                 type="radio"
                 name="paymentMethod"
-                checked={paymentMethod === 'cash_on_delivery'}
-                onChange={() => setPaymentMethod('cash_on_delivery')}
+                checked={paymentMethod === 'kb'}
+                onChange={() => setPaymentMethod('kb')}
                 className="mt-1 text-brand-600 focus:ring-brand-500"
               />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-navy-900">
-                  <Banknote className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>{t.checkout.methods.cash_on_delivery}</span>
+                  <Building2 className="w-4 h-4 text-amber-600 shrink-0" />
+                  <span>3: KB (KB PRASAC Bank)</span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
-                  {t.checkout.methods.cash_on_delivery_desc}
+                  Transfer via KB PRASAC / KB Mobile app or scan QR
                 </p>
               </div>
             </label>
           </div>
 
-          {/* KHQR Info Banner when ABA is chosen */}
-          {paymentMethod === 'aba_khqr' && (
-            <div className="p-4 rounded-2xl bg-gradient-to-br from-navy-900 to-navy-800 text-white space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-red-600 flex items-center justify-center font-black text-xs">
-                    KHQR
-                  </div>
-                  <div>
-                    <h3 className="text-xs font-bold leading-tight">INFO POS Hardware KHQR</h3>
-                    <span className="text-[10px] text-slate-300">Scan via ABA, ACLEDA, Wing</span>
-                  </div>
-                </div>
-                <span className="text-xs font-black text-brand-300 font-mono">
-                  {formatUSD(totalAmount)}
-                </span>
-              </div>
+          {/* Dynamic Payment Details & QR Display Card */}
+          {(() => {
+            const currentMethod =
+              paymentMethod === 'aba'
+                ? {
+                    key: 'aba',
+                    name: settings.paymentMethods?.aba?.bankName || 'ABA Bank',
+                    accountName: settings.paymentMethods?.aba?.accountName || 'INFO POS HARDWARE (USD)',
+                    accountNumber: settings.paymentMethods?.aba?.accountNumber || '001 888 999 (USD)',
+                    qrUrl: settings.paymentMethods?.aba?.qrImageUrl,
+                    instructions: settings.paymentMethods?.aba?.instructions || 'Scan with ABA Mobile or transfer to account number',
+                    badgeColor: 'bg-[#005f82] text-white',
+                    cardBorder: 'border-[#005f82]/30',
+                  }
+                : paymentMethod === 'bakong_khqr'
+                ? {
+                    key: 'bakong',
+                    name: settings.paymentMethods?.bakong?.bankName || 'Bakong KHQR',
+                    accountName: settings.paymentMethods?.bakong?.accountName || 'INFO POS HARDWARE (USD)',
+                    accountNumber: settings.paymentMethods?.bakong?.accountNumber || 'infopos@bk',
+                    qrUrl: settings.paymentMethods?.bakong?.qrImageUrl,
+                    instructions: settings.paymentMethods?.bakong?.instructions || 'Scan with any Bakong-enabled app in Cambodia',
+                    badgeColor: 'bg-red-600 text-white',
+                    cardBorder: 'border-red-300',
+                  }
+                : {
+                    key: 'kb',
+                    name: settings.paymentMethods?.kb?.bankName || 'KB PRASAC Bank',
+                    accountName: settings.paymentMethods?.kb?.accountName || 'INFO POS HARDWARE (USD)',
+                    accountNumber: settings.paymentMethods?.kb?.accountNumber || '100 234 567 890 (USD)',
+                    qrUrl: settings.paymentMethods?.kb?.qrImageUrl,
+                    instructions: settings.paymentMethods?.kb?.instructions || 'Transfer via KB PRASAC / KB Mobile app or scan QR',
+                    badgeColor: 'bg-amber-600 text-white',
+                    cardBorder: 'border-amber-300',
+                  };
 
-              {/* Sample QR Container */}
-              <div className="bg-white p-3 rounded-xl flex flex-col items-center justify-center text-center">
-                <div className="w-36 h-36 bg-slate-900 p-2 rounded-lg flex items-center justify-center">
-                  <QrCode className="w-32 h-32 text-white" />
+            return (
+              <div className={`p-4 rounded-2xl bg-white border-2 ${currentMethod.cardBorder} shadow-sm space-y-3 animate-in fade-in`}>
+                <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className={`px-2 py-0.5 rounded-lg text-[10px] font-black ${currentMethod.badgeColor}`}>
+                      {currentMethod.name}
+                    </span>
+                    <span className="text-xs font-bold text-navy-900 truncate">
+                      {currentMethod.accountName}
+                    </span>
+                  </div>
+                  <span className="text-xs font-black text-brand-700 font-mono">
+                    {formatUSD(totalAmount)}
+                  </span>
                 </div>
-                <span className="text-[10px] text-slate-500 mt-2 font-mono font-semibold">
-                  Account: INFO POS HARDWARE (USD)
-                </span>
-                <span className="text-[10px] text-brand-700 font-bold">
-                  Amount: {formatUSD(totalAmount)}
-                </span>
+
+                {/* QR Code Container */}
+                <div className="flex flex-col items-center justify-center p-3 bg-slate-50 rounded-xl border border-slate-100 text-center">
+                  {currentMethod.qrUrl ? (
+                    <div className="w-44 h-44 rounded-xl overflow-hidden bg-white p-2 border border-slate-200 shadow-xs flex items-center justify-center">
+                      <img
+                        src={currentMethod.qrUrl}
+                        alt={`${currentMethod.name} QR Code`}
+                        className="w-full h-full object-contain"
+                      />
+                    </div>
+                  ) : (
+                    <div className="w-40 h-40 bg-navy-900 rounded-xl p-3 flex flex-col items-center justify-center text-white shadow-xs">
+                      <QrCode className="w-24 h-24 text-white" />
+                      <span className="text-[10px] font-bold mt-1 text-slate-300 uppercase">
+                        {currentMethod.name}
+                      </span>
+                    </div>
+                  )}
+
+                  <div className="mt-2.5 flex items-center justify-center gap-2">
+                    <span className="text-xs font-mono font-bold text-navy-900 bg-white px-2.5 py-1 rounded-lg border border-slate-200">
+                      {currentMethod.accountNumber}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyText(currentMethod.accountNumber, currentMethod.key)}
+                      className="px-2 py-1 rounded-lg bg-slate-200 hover:bg-slate-300 text-slate-700 text-[10px] font-bold flex items-center gap-1 transition-colors"
+                      title="Copy account number"
+                    >
+                      {copiedField === currentMethod.key ? (
+                        <>
+                          <Check className="w-3 h-3 text-emerald-600" />
+                          <span className="text-emerald-700 font-bold">Copied!</span>
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="w-3 h-3" />
+                          <span>Copy</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500 mt-1.5 font-medium">
+                    {currentMethod.instructions}
+                  </p>
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
         </div>
 
         {/* Step 3: Payment Proof Upload Section */}
-        {paymentMethod !== 'cash_on_delivery' && (
-          <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-4">
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-4">
             <div className="flex items-start justify-between gap-2">
               <div>
                 <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide flex items-center gap-1.5">
@@ -595,7 +697,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               <p className="leading-snug">{t.checkout.paymentVerificationNotice}</p>
             </div>
           </div>
-        )}
 
         {/* Step 4: Final Order Summary Review */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-3">
