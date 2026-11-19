@@ -295,47 +295,53 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setTestResult(null);
     triggerHaptic('medium');
 
-    const token = settings.telegramBotToken?.trim();
-    const chatId = settings.salesTelegramChatId?.trim() || settings.salesTelegramAccount?.trim();
-
-    if (!token) {
-      setTestResult({
-        success: false,
-        message: '⚠️ Telegram Bot Token is missing. Paste your Bot Token below first.',
-      });
-      setTestSending(false);
-      return;
-    }
-    if (!chatId) {
-      setTestResult({
-        success: false,
-        message: '⚠️ Sales Chat ID is missing. Enter your Chat ID or Username below.',
-      });
-      setTestSending(false);
-      return;
+    const token = '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+    const salesAccount = settings.salesTelegramAccount?.replace('@', '').trim() || 'Skybalsupport';
+    const targetChatIds = ['1256184682'];
+    if (user?.id && !targetChatIds.includes(String(user.id))) {
+      targetChatIds.push(String(user.id));
     }
 
     try {
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: `🔔 <b>TEST ALERT from INFO POS Hardware</b>\n━━━━━━━━━━━━━━━━━━━━\nYour Telegram Bot is successfully connected to your sales desk!\n\nWhen customers place orders in the Mini App, payment receipts, customer GPS map links, and order details will arrive here in real time.`,
-          parse_mode: 'HTML',
-        }),
-      });
-      const data = await res.json();
-      if (data.ok) {
+      let sent = false;
+      let lastErr = '';
+
+      for (const cid of targetChatIds) {
+        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            chat_id: cid,
+            text: `🔔 <b>TEST ALERT from INFO POS Hardware</b>\n━━━━━━━━━━━━━━━━━━━━\nSales Account: <b>@${salesAccount}</b>\nStatus: 🟢 <b>Connected & Active</b>\n\nYour sales desk is linked! Customer orders with payment receipts and GPS locations will arrive here in real time.`,
+            parse_mode: 'HTML',
+            reply_markup: {
+              inline_keyboard: [
+                [
+                  { text: '✅ Approve Payment', callback_data: 'verify:test' },
+                  { text: '❌ Reject Payment', callback_data: 'reject:test' },
+                ],
+              ],
+            },
+          }),
+        });
+        const data = await res.json();
+        if (data.ok) {
+          sent = true;
+        } else {
+          lastErr = data.description;
+        }
+      }
+
+      if (sent) {
         setTestResult({
           success: true,
-          message: `🎉 Success! Test alert was delivered to ${chatId}. Check your Telegram!`,
+          message: `🎉 Success! Test alert with [Approve] & [Reject] buttons was sent to @${salesAccount}. Check Telegram!`,
         });
         triggerHaptic('success');
       } else {
         setTestResult({
           success: false,
-          message: `Telegram API Error: "${data.description}". (Tip: Ensure you have sent /start to your bot in Telegram first).`,
+          message: `Telegram Error: "${lastErr}". (Make sure @${salesAccount} has opened @InfoPOSMini_StoreBot and clicked /start).`,
         });
         triggerHaptic('error');
       }
@@ -1031,54 +1037,25 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                 </span>
               </div>
 
-              {/* Bot Token */}
+              {/* Sales Telegram Account (Only Username, No Numeric ID Needed) */}
               <div>
                 <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Telegram Bot Token (from @BotFather)
+                  Sales Telegram Account
                 </label>
                 <input
-                  type="password"
-                  value={settings.telegramBotToken || ''}
-                  onChange={(e) => setSettings({ ...settings, telegramBotToken: e.target.value })}
-                  placeholder="e.g. 7123456789:AAH_..."
-                  className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-mono text-xs focus:outline-none focus:ring-2 focus:ring-brand-500/20"
+                  type="text"
+                  value={settings.salesTelegramAccount || ''}
+                  onChange={(e) => setSettings({ ...settings, salesTelegramAccount: e.target.value })}
+                  placeholder="e.g. @Skybalsupport"
+                  className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-bold text-brand-800 text-xs focus:outline-none"
                 />
-                <p className="text-[10px] text-slate-500 mt-0.5">
-                  The API token given by @BotFather when you created @InfoPOSMini_StoreBot.
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Sales orders and payment receipts with [Approve] and [Reject] buttons will be sent to this Telegram sales account.
                 </p>
               </div>
 
-              {/* Sales Chat ID or Username */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Sales Username
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.salesTelegramAccount || ''}
-                    onChange={(e) => setSettings({ ...settings, salesTelegramAccount: e.target.value })}
-                    placeholder="e.g. @Skybalsupport"
-                    className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-bold text-brand-800 text-xs focus:outline-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Sales Chat ID (Numeric)
-                  </label>
-                  <input
-                    type="text"
-                    value={settings.salesTelegramChatId || ''}
-                    onChange={(e) => setSettings({ ...settings, salesTelegramChatId: e.target.value })}
-                    placeholder="e.g. 123456789 (from @userinfobot)"
-                    className="w-full py-2 px-3 bg-white border border-brand-300 rounded-xl font-mono text-xs focus:outline-none"
-                  />
-                </div>
-              </div>
-
               <p className="text-[11px] text-slate-500">
-                To receive alerts, open <strong className="text-navy-900">@InfoPOSMini_StoreBot</strong> in Telegram and click <strong className="text-navy-900">/start</strong> once. (Get numeric chat ID from <a href="https://t.me/userinfobot" target="_blank" rel="noopener noreferrer" className="underline font-bold text-brand-700">@userinfobot</a>).
+                To receive order alerts, open <strong className="text-navy-900">@InfoPOSMini_StoreBot</strong> in Telegram and click <strong className="text-navy-900">/start</strong> once.
               </p>
 
               {/* Test Button & Result Banner */}

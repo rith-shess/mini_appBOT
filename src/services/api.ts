@@ -17,7 +17,7 @@ export const defaultCompanySettings: CompanySettings = {
   telegramSupportUser: 'Skybalsupport',
   salesTelegramAccount: '@Skybalsupport',
   telegramBotToken: '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug',
-  salesTelegramChatId: '1275900952, 1256184682',
+  salesTelegramChatId: '1256184682',
   facebookUrl: 'https://facebook.com/infoposhardware',
   showroomAddress: 'Building 48, Blvd. Mao Tse Toung, Chamkarmon, Phnom Penh, Cambodia',
   workingHours: 'Monday – Saturday: 8:00 AM – 5:30 PM',
@@ -59,18 +59,17 @@ function saveStoredProducts(products: Product[]) {
  * Can be called directly from frontend to send alerts to the sales team chat
  */
 export async function sendTelegramOrderAlert(order: Order, settings: CompanySettings): Promise<{ success: boolean; message?: string }> {
-  const token = settings.telegramBotToken || import.meta.env.VITE_TELEGRAM_BOT_TOKEN;
-  const rawChatId = settings.salesTelegramChatId || settings.salesTelegramAccount || '1275900952';
-  const chatIds = rawChatId
-    .split(',')
-    .map((c) => c.trim())
-    .filter(Boolean);
+  const token = settings.telegramBotToken || '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+  
+  // Always send directly to verified sales chat ID for @Skybalsupport (1256184682)
+  const chatIds: string[] = ['1256184682'];
 
-  if (!token) {
-    return { success: false, message: 'Telegram Bot Token is not configured in Admin Settings.' };
-  }
-  if (chatIds.length === 0) {
-    return { success: false, message: 'Sales Chat ID is not configured in Admin Settings.' };
+  // Add any custom numeric chat ID if provided in settings
+  if (settings.salesTelegramChatId && /^\d+$/.test(settings.salesTelegramChatId.trim())) {
+    const customId = settings.salesTelegramChatId.trim();
+    if (!chatIds.includes(customId)) {
+      chatIds.push(customId);
+    }
   }
 
   const itemsList = order.items
