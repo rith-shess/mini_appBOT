@@ -107,6 +107,7 @@ export const mockProducts: Product[] = [
     price: 485.0,
     originalPrice: 530.0,
     imageUrl: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80',
+    videoUrl: 'https://youtu.be/Xb6rdzqBuG0?si=FGlfvsYpiB8Xh2rk',
     isAvailable: true,
     stockCount: 18,
     isFeatured: true,

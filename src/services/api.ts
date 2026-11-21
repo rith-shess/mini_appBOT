@@ -1,5 +1,6 @@
 import { Order, Product, Category, CategoryId, CompanySettings, PaymentVerificationStatus, PaymentMethodsSettings, PaymentMethod } from '../types';
 import { mockProducts, categories } from '../data/mockProducts';
+import { extractVideoFromText } from '../utils/video';
 
 // Base URL for future Cloudflare Workers API backend
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || '';
@@ -61,6 +62,24 @@ function getStoredProducts(): Product[] {
     if (raw) {
       const parsed = JSON.parse(raw);
       if (Array.isArray(parsed) && parsed.length > 0) {
+        let modified = false;
+        parsed.forEach((p: Product) => {
+          if (!p.videoUrl && p.description?.en) {
+            const extracted = extractVideoFromText(p.description.en);
+            if (extracted.videoUrl) {
+              p.videoUrl = extracted.videoUrl;
+              p.description.en = extracted.cleanedText;
+              modified = true;
+            }
+          }
+          if ((p.id === 'pos-d15-dual' || p.sku === 'POS-T156-D') && !p.videoUrl) {
+            p.videoUrl = 'https://youtu.be/Xb6rdzqBuG0?si=FGlfvsYpiB8Xh2rk';
+            modified = true;
+          }
+        });
+        if (modified) {
+          saveStoredProducts(parsed);
+        }
         return parsed;
       }
     }

@@ -28,10 +28,12 @@ import {
   ArrowLeft,
   CreditCard,
   QrCode,
+  Video,
 } from 'lucide-react';
 import { Product, Order, CompanySettings, CategoryId, PaymentVerificationStatus, ActiveScreen } from '../types';
 import { apiService, defaultCompanySettings } from '../services/api';
 import { formatUSD, formatDate } from '../utils/formatters';
+import { parseVideoUrl } from '../utils/video';
 import { useTelegram } from '../hooks/useTelegram';
 
 interface AdminDashboardPageProps {
@@ -86,6 +88,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [formDescEn, setFormDescEn] = useState('');
   const [formDescKm, setFormDescKm] = useState('');
   const [formImage, setFormImage] = useState<string>('');
+  const [formVideoUrl, setFormVideoUrl] = useState<string>('');
   const [formIsFeatured, setFormIsFeatured] = useState<boolean>(false);
   const [formIsLatest, setFormIsLatest] = useState<boolean>(false);
 
@@ -228,6 +231,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setFormDescEn('');
     setFormDescKm('');
     setFormImage('https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80');
+    setFormVideoUrl('');
     setFormIsFeatured(false);
     setFormIsLatest(true);
     setIsCreatingProduct(true);
@@ -248,6 +252,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setFormDescEn(prod.description.en);
     setFormDescKm(prod.description.km);
     setFormImage(prod.imageUrl);
+    setFormVideoUrl(prod.videoUrl || '');
     setFormIsFeatured(Boolean(prod.isFeatured));
     setFormIsLatest(Boolean(prod.isLatest));
     setIsCreatingProduct(true);
@@ -276,6 +281,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
         km: formDescKm.trim() || 'ឧបករណ៍ POS Hardware គុណភាពស្តង់ដារ។',
       },
       imageUrl: formImage || 'https://placehold.co/800x600/0f172a/ffffff?text=POS',
+      videoUrl: formVideoUrl.trim() || undefined,
       isAvailable: formAvailable,
       stockCount: Number(formStock),
       isFeatured: formIsFeatured,
@@ -774,6 +780,38 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   />
                 </div>
 
+                <div>
+                  <label className="block font-bold text-navy-900 mb-1 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Video className="w-3.5 h-3.5 text-brand-600" />
+                      Product Video Link (YouTube / MP4)
+                    </span>
+                    <span className="text-[10px] text-slate-400 font-normal">Optional</span>
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="url"
+                      value={formVideoUrl}
+                      onChange={(e) => setFormVideoUrl(e.target.value)}
+                      placeholder="e.g. https://youtu.be/Xb6rdzqBuG0 or https://www.youtube.com/watch?v=..."
+                      className="w-full py-2 px-3 pl-8 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono"
+                    />
+                    <Video className="w-4 h-4 text-slate-400 absolute left-2.5 top-2.5" />
+                  </div>
+                  {formVideoUrl && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <span className="text-[10px] text-emerald-600 font-medium flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Video attached
+                      </span>
+                      {parseVideoUrl(formVideoUrl)?.type === 'youtube' && (
+                        <span className="text-[10px] text-slate-400 font-mono">
+                          (YouTube player ready)
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+
                 {/* Toggles */}
                 <div className="flex items-center gap-4 pt-1">
                   <label className="flex items-center gap-2 cursor-pointer font-bold">
@@ -851,6 +889,11 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                     >
                       {p.isAvailable ? `${p.stockCount} in stock` : 'Out of stock'}
                     </span>
+                    {p.videoUrl && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-red-50 text-red-600 flex items-center gap-1">
+                        <Video className="w-2.5 h-2.5" /> Video
+                      </span>
+                    )}
                   </div>
                   <h3 className="text-xs font-bold text-navy-900 truncate mt-0.5">{p.name.en}</h3>
                   <div className="text-xs font-black text-brand-700 font-mono mt-0.5">

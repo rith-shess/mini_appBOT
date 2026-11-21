@@ -48,6 +48,7 @@ export interface Product {
   };
   specifications: ProductSpecification[];
   imageUrl: string;
+  videoUrl?: string;
   isAvailable: boolean;
   stockCount: number;
   isFeatured?: boolean;

@@ -10,9 +10,13 @@ import {
   Star,
   PackageCheck,
   Share2,
+  Video,
+  ExternalLink,
+  Play,
 } from 'lucide-react';
 import { Product, ActiveScreen } from '../types';
 import { formatUSD } from '../utils/formatters';
+import { parseVideoUrl, extractVideoFromText } from '../utils/video';
 import { useTranslation } from '../hooks/useTranslation';
 import { useCart } from '../hooks/useCart';
 import { useTelegram } from '../hooks/useTelegram';
@@ -42,6 +46,11 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
 
   const productName = product.name[language] || product.name.en;
   const productDesc = product.description[language] || product.description.en;
+
+  // Video extraction: dedicated videoUrl takes priority, with fallback to description URL
+  const { cleanedText, videoUrl: extractedVideoUrl } = extractVideoFromText(productDesc);
+  const activeVideoUrl = product.videoUrl || extractedVideoUrl;
+  const videoInfo = parseVideoUrl(activeVideoUrl);
 
   // Handle Telegram MainButton
   useEffect(() => {
@@ -210,10 +219,70 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-1.5">
             {t.product.description}
           </h2>
-          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed">
-            {productDesc}
+          <p className="text-xs sm:text-sm text-slate-600 leading-relaxed whitespace-pre-line">
+            {cleanedText || productDesc}
           </p>
         </div>
+
+        {/* Video Demonstration Player */}
+        {videoInfo && (
+          <div className="pt-2">
+            <div className="flex items-center justify-between mb-2">
+              <h2 className="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                <Video className="w-3.5 h-3.5 text-brand-600" />
+                <span>Product Video Demo</span>
+              </h2>
+              {videoInfo.rawUrl && (
+                <a
+                  href={videoInfo.rawUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-[11px] font-bold text-brand-600 hover:text-brand-700 bg-brand-50 hover:bg-brand-100 px-2 py-0.5 rounded-lg transition-colors border border-brand-200/60"
+                >
+                  <ExternalLink className="w-3 h-3" />
+                  <span>Open Video</span>
+                </a>
+              )}
+            </div>
+
+            {videoInfo.type === 'youtube' ? (
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-slate-950 shadow-md border border-slate-200/80">
+                <iframe
+                  src={videoInfo.embedUrl}
+                  title={productName}
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                  allowFullScreen
+                />
+              </div>
+            ) : videoInfo.type === 'direct' ? (
+              <div className="relative aspect-video w-full rounded-2xl overflow-hidden bg-black shadow-md border border-slate-200/80">
+                <video
+                  src={videoInfo.embedUrl}
+                  controls
+                  className="w-full h-full object-contain"
+                  playsInline
+                />
+              </div>
+            ) : (
+              <a
+                href={videoInfo.rawUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-3 p-3 rounded-2xl bg-brand-50/60 hover:bg-brand-50 border border-brand-200 text-brand-900 transition-colors group"
+              >
+                <div className="w-9 h-9 rounded-xl bg-brand-600 text-white flex items-center justify-center shrink-0 shadow-xs group-hover:scale-105 transition-transform">
+                  <Play className="w-4 h-4 fill-white ml-0.5" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold truncate">Watch Hardware Video Demonstration</p>
+                  <p className="text-[10px] text-slate-500 truncate">{videoInfo.rawUrl}</p>
+                </div>
+                <ExternalLink className="w-3.5 h-3.5 text-brand-600 shrink-0" />
+              </a>
+            )}
+          </div>
+        )}
 
         {/* Specifications Table */}
         {product.specifications && product.specifications.length > 0 && (
