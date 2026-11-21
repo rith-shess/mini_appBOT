@@ -76,9 +76,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
     user ? `${user.firstName}${user.lastName ? ' ' + user.lastName : ''}` : ''
   );
   const [phoneNumber, setPhoneNumber] = useState('');
-  const [telegramUsername, setTelegramUsername] = useState(
-    user?.username ? `@${user.username}` : ''
-  );
   const [provinceOrCity, setProvinceOrCity] = useState('Phnom Penh');
   const [detailedAddress, setDetailedAddress] = useState('');
   const [orderNotes, setOrderNotes] = useState('');
@@ -226,7 +223,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
           provinceOrCity,
           detailedAddress: detailedAddress.trim(),
           orderNotes: orderNotes.trim(),
-          telegramUsername: telegramUsername.trim() || (user?.username ? `@${user.username}` : undefined),
+          telegramUsername: user?.username ? `@${user.username}` : undefined,
           latitude: latitude || undefined,
           longitude: longitude || undefined,
           googleMapsUrl:
@@ -314,19 +311,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 placeholder={t.checkout.phoneNumberPlaceholder}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all font-mono"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
-                Telegram Username (For Bot Order Alerts)
-              </label>
-              <input
-                type="text"
-                value={telegramUsername}
-                onChange={(e) => setTelegramUsername(e.target.value)}
-                placeholder="e.g. @username"
                 className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all font-mono"
               />
             </div>
