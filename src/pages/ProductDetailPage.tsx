@@ -5,7 +5,7 @@ import {
   Check,
   Plus,
   Minus,
-  ShoppingCart,
+  ShoppingBag,
   Zap,
   Star,
   PackageCheck,
@@ -276,20 +276,20 @@ export const ProductDetailPage: React.FC<ProductDetailPageProps> = ({
           <button
             onClick={handleAddToCart}
             disabled={!product.isAvailable}
-            className={`py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 focus:outline-none ${
+            className={`py-3 px-4 rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-all active:scale-95 focus:outline-none shadow-xs ${
               justAdded
-                ? 'bg-emerald-600 text-white'
-                : 'bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-200'
+                ? 'bg-emerald-600 text-white shadow-emerald-200'
+                : 'bg-slate-100 hover:bg-slate-200 text-navy-900 border border-slate-200/80'
             }`}
           >
             {justAdded ? (
               <>
-                <Check className="w-4 h-4" />
+                <Check className="w-4 h-4 stroke-[2.5]" />
                 <span>{t.common.addedToCart}</span>
               </>
             ) : (
               <>
-                <ShoppingCart className="w-4 h-4" />
+                <ShoppingBag className="w-4 h-4" />
                 <span>{t.common.addToCart}</span>
               </>
             )}

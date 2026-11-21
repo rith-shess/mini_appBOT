@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ShoppingCart, Check, Star, ShieldCheck } from 'lucide-react';
+import { Plus, Check, Star, ShieldCheck } from 'lucide-react';
 import { Product } from '../../types';
 import { formatUSD } from '../../utils/formatters';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -130,21 +130,23 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSelect }) =
             <span className="text-[10px] text-slate-400 block font-medium">USD Cash / KHQR</span>
           </div>
 
-          {/* Add button */}
+          {/* Quick Add Button */}
           <button
             onClick={handleQuickAdd}
             disabled={!product.isAvailable}
-            className={`p-2.5 rounded-xl transition-all focus:outline-none active:scale-90 ${
+            className={`w-8.5 h-8.5 rounded-xl flex items-center justify-center transition-all duration-200 focus:outline-none active:scale-90 shrink-0 shadow-xs ${
               justAdded
-                ? 'bg-emerald-600 text-white'
-                : 'bg-brand-50 hover:bg-brand-600 text-brand-700 hover:text-white border border-brand-200/80 hover:border-brand-600'
+                ? 'bg-emerald-600 text-white shadow-emerald-200 scale-105'
+                : !product.isAvailable
+                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
+                : 'bg-navy-900 hover:bg-brand-600 text-white hover:shadow-sm'
             }`}
             title={t.common.addToCart}
           >
             {justAdded ? (
-              <Check className="w-4 h-4 animate-in zoom-in-75" />
+              <Check className="w-4 h-4 stroke-[2.5] animate-in zoom-in-75" />
             ) : (
-              <ShoppingCart className="w-4 h-4" />
+              <Plus className="w-4 h-4 stroke-[2.5]" />
             )}
           </button>
         </div>
