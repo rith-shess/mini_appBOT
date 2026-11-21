@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Plus, Check, Star, ShieldCheck } from 'lucide-react';
+import { ShoppingCart, Check, Star, ShieldCheck } from 'lucide-react';
 import { Product } from '../../types';
 import { formatUSD } from '../../utils/formatters';
 import { useTranslation } from '../../hooks/useTranslation';
@@ -115,9 +115,9 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSelect }) =
         </div>
 
         {/* Price & Action Button */}
-        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-2">
-          <div>
-            <div className="flex items-baseline gap-1.5">
+        <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between gap-1.5">
+          <div className="min-w-0 flex-1">
+            <div className="flex items-baseline gap-1.5 truncate">
               <span className="text-base font-extrabold text-navy-900 tracking-tight">
                 {formatUSD(product.price)}
               </span>
@@ -127,26 +127,26 @@ export const ProductCard: React.FC<ProductCardProps> = ({ product, onSelect }) =
                 </span>
               )}
             </div>
-            <span className="text-[10px] text-slate-400 block font-medium">USD Cash / KHQR</span>
+            <span className="text-[10px] text-slate-400 block font-medium truncate">USD Cash / KHQR</span>
           </div>
 
-          {/* Quick Add Button */}
+          {/* Compact Cart Button */}
           <button
             onClick={handleQuickAdd}
             disabled={!product.isAvailable}
-            className={`w-8.5 h-8.5 rounded-xl flex items-center justify-center transition-all duration-200 focus:outline-none active:scale-90 shrink-0 shadow-xs ${
+            className={`w-7.5 h-7.5 rounded-lg flex items-center justify-center transition-all focus:outline-none active:scale-90 shrink-0 ${
               justAdded
-                ? 'bg-emerald-600 text-white shadow-emerald-200 scale-105'
+                ? 'bg-emerald-600 text-white'
                 : !product.isAvailable
-                ? 'bg-slate-100 text-slate-300 cursor-not-allowed'
-                : 'bg-navy-900 hover:bg-brand-600 text-white hover:shadow-sm'
+                ? 'bg-slate-100 text-slate-300 border border-slate-200 cursor-not-allowed'
+                : 'bg-brand-50 hover:bg-brand-600 text-brand-600 hover:text-white border border-brand-200/90 hover:border-brand-600'
             }`}
             title={t.common.addToCart}
           >
             {justAdded ? (
-              <Check className="w-4 h-4 stroke-[2.5] animate-in zoom-in-75" />
+              <Check className="w-3.5 h-3.5 stroke-[2.5] animate-in zoom-in-75" />
             ) : (
-              <Plus className="w-4 h-4 stroke-[2.5]" />
+              <ShoppingCart className="w-3.5 h-3.5 stroke-[2]" />
             )}
           </button>
         </div>
