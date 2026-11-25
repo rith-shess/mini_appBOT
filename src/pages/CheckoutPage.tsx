@@ -312,7 +312,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 triggerHaptic('light');
                 setDeliveryMethodId('pickup');
               }}
-              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center gap-3 ${
                 deliveryMethodId === 'pickup'
                   ? 'border-sky-400 bg-sky-50/40 ring-2 ring-sky-200/70 shadow-sm'
                   : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50'
@@ -331,11 +331,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                   </div>
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
-                  {pickupConfig.fee === 0 ? 'Free' : formatUSD(pickupConfig.fee)}
-                </span>
-              </div>
             </button>
 
             {/* 2. VET */}
@@ -345,7 +340,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 triggerHaptic('light');
                 setDeliveryMethodId('vet');
               }}
-              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center gap-3 ${
                 deliveryMethodId === 'vet'
                   ? 'border-sky-400 bg-sky-50/40 ring-2 ring-sky-200/70 shadow-sm'
                   : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50'
@@ -367,11 +362,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                   </div>
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <span className="text-base font-black text-rose-500 font-mono">
-                  {formatUSD(vetConfig.fee)}
-                </span>
-              </div>
             </button>
 
             {/* 3. J&T EXPRESS */}
@@ -381,7 +371,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 triggerHaptic('light');
                 setDeliveryMethodId('jnt');
               }}
-              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center gap-3 ${
                 deliveryMethodId === 'jnt'
                   ? 'border-sky-400 bg-sky-50/40 ring-2 ring-sky-200/70 shadow-sm'
                   : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50'
@@ -400,11 +390,6 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                     {jntConfig.subtitle}
                   </div>
                 </div>
-              </div>
-              <div className="shrink-0 text-right">
-                <span className="text-base font-black text-rose-500 font-mono">
-                  {formatUSD(jntConfig.fee)}
-                </span>
               </div>
             </button>
           </div>
