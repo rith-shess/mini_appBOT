@@ -50,14 +50,14 @@ export const defaultDeliveryMethods: DeliveryMethodsSettings = {
     id: 'vet',
     name: 'VET',
     subtitle: 'វីរៈប៊ុនថាំង',
-    fee: 1.5,
+    fee: 0,
     enabled: true,
   },
   jnt: {
     id: 'jnt',
     name: 'J&T EXPRESS',
     subtitle: 'J&T Express',
-    fee: 1.5,
+    fee: 0,
     enabled: true,
   },
 };
@@ -626,10 +626,15 @@ export const apiService = {
               ...defaultPaymentMethods,
               ...(parsed.paymentMethods || {}),
             },
-            deliveryMethods: {
-              ...defaultDeliveryMethods,
-              ...(parsed.deliveryMethods || {}),
-            },
+            deliveryMethods: (() => {
+              const dm = {
+                ...defaultDeliveryMethods,
+                ...(parsed.deliveryMethods || {}),
+              };
+              if (dm.vet && dm.vet.fee === 1.5) dm.vet.fee = 0;
+              if (dm.jnt && dm.jnt.fee === 1.5) dm.jnt.fee = 0;
+              return dm;
+            })(),
           };
         }
       } catch {}

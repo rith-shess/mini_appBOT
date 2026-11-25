@@ -1772,7 +1772,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <input
                     type="number"
                     step="0.01"
-                    value={settings.deliveryMethods?.vet?.fee ?? 1.5}
+                    value={settings.deliveryMethods?.vet?.fee ?? 0}
                     onChange={(e) => updateDeliveryMethodConfig('vet', 'fee', Number(e.target.value))}
                     className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-rose-600"
                   />
@@ -1828,7 +1828,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
                   <input
                     type="number"
                     step="0.01"
-                    value={settings.deliveryMethods?.jnt?.fee ?? 1.5}
+                    value={settings.deliveryMethods?.jnt?.fee ?? 0}
                     onChange={(e) => updateDeliveryMethodConfig('jnt', 'fee', Number(e.target.value))}
                     className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-rose-600"
                   />

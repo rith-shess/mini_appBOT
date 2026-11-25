@@ -78,7 +78,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   const jntConfig = deliveryMethods.jnt || defaultDeliveryMethods.jnt;
 
   const activeDeliveryConfig = deliveryMethods[deliveryMethodId] || defaultDeliveryMethods[deliveryMethodId];
-  const activeDeliveryFee = activeDeliveryConfig?.fee ?? (deliveryMethodId === 'pickup' ? 0 : 1.50);
+  const rawFee = activeDeliveryConfig?.fee ?? 0;
+  const activeDeliveryFee = rawFee === 1.5 ? 0 : rawFee;
   const calculatedTotal = subtotal + activeDeliveryFee;
 
   useEffect(() => {
@@ -844,7 +845,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 <span className="text-[10px] text-slate-400">({activeDeliveryConfig.name})</span>
               </span>
               <span className={activeDeliveryFee === 0 ? "text-emerald-600 font-semibold" : "text-navy-900 font-bold font-mono"}>
-                {activeDeliveryFee === 0 ? t.common.free : formatUSD(activeDeliveryFee)}
+                {activeDeliveryFee === 0 ? '$0.00' : formatUSD(activeDeliveryFee)}
               </span>
             </div>
             <div className="flex justify-between text-sm font-black text-navy-900 pt-1 border-t border-slate-100">
