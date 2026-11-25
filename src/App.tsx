@@ -9,8 +9,8 @@ import { CheckoutPage } from './pages/CheckoutPage';
 import { OrderConfirmationPage } from './pages/OrderConfirmationPage';
 import { ContactPage } from './pages/ContactPage';
 import { AdminDashboardPage } from './pages/AdminDashboardPage';
-import { ActiveScreen, CategoryId, Product, Order } from './types';
-import { apiService } from './services/api';
+import { ActiveScreen, CategoryId, Product, Order, CompanySettings } from './types';
+import { apiService, defaultCompanySettings } from './services/api';
 import { useTelegram } from './hooks/useTelegram';
 import { useCart } from './hooks/useCart';
 
@@ -21,6 +21,7 @@ export const App: React.FC = () => {
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [selectedCategoryId, setSelectedCategoryId] = useState<CategoryId | null>(null);
   const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
+  const [settings, setSettings] = useState<CompanySettings>(defaultCompanySettings);
   const [isLoading, setIsLoading] = useState(true);
 
   const { webApp, isTelegram, triggerHaptic } = useTelegram();
@@ -30,12 +31,16 @@ export const App: React.FC = () => {
   const loadData = useCallback(async () => {
     try {
       setIsLoading(true);
-      const [cats, prods] = await Promise.all([
+      const [cats, prods, loadedSettings] = await Promise.all([
         apiService.getCategories(),
         apiService.getProducts(),
+        apiService.getSettings(),
       ]);
       setCategories(cats);
       setProducts(prods);
+      if (loadedSettings) {
+        setSettings(loadedSettings);
+      }
     } catch (err) {
       console.error('Failed to load initial data:', err);
     } finally {
@@ -109,6 +114,7 @@ export const App: React.FC = () => {
       <Header
         currentScreen={currentScreen}
         onNavigate={handleNavigate}
+        settings={settings}
       />
 
       {/* Main Screen Content container */}

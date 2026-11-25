@@ -1,4 +1,4 @@
-import { Order, Product, Category, CategoryId, CompanySettings, PaymentVerificationStatus, PaymentMethodsSettings, PaymentMethod } from '../types';
+import { Order, Product, Category, CategoryId, CompanySettings, PaymentVerificationStatus, PaymentMethodsSettings, PaymentMethod, DeliveryMethodsSettings } from '../types';
 import { mockProducts, categories } from '../data/mockProducts';
 import { extractVideoFromText } from '../utils/video';
 
@@ -38,9 +38,35 @@ export const defaultPaymentMethods: PaymentMethodsSettings = {
   },
 };
 
+export const defaultDeliveryMethods: DeliveryMethodsSettings = {
+  pickup: {
+    id: 'pickup',
+    name: 'Pick Up',
+    subtitle: 'Store Branch Sophea Store',
+    fee: 0,
+    enabled: true,
+  },
+  vet: {
+    id: 'vet',
+    name: 'VET',
+    subtitle: 'វីរៈប៊ុនថាំង',
+    fee: 1.5,
+    enabled: true,
+  },
+  jnt: {
+    id: 'jnt',
+    name: 'J&T EXPRESS',
+    subtitle: 'J&T Express',
+    fee: 1.5,
+    enabled: true,
+  },
+};
+
 export const defaultCompanySettings: CompanySettings = {
-  companyName: 'INFO POS Hardware',
-  tagline: 'Premium POS Solutions & Retail Equipment',
+  companyName: 'INFO POS',
+  headerBadge: 'PRO',
+  logoUrl: '',
+  tagline: 'Hardware Solutions',
   phoneNumber: '+855 (0) 23 999 888 / +855 (0) 12 345 678',
   telegramSupportUser: 'Skybalsupport',
   salesTelegramAccount: '@Skybalsupport',
@@ -54,6 +80,7 @@ export const defaultCompanySettings: CompanySettings = {
   adminPin: '8888',
   authorizedTelegramUsernames: ['rith_shees', 'rith-shess', 'rithshees', 'rithilysm', 'Skybalsupport'],
   paymentMethods: defaultPaymentMethods,
+  deliveryMethods: defaultDeliveryMethods,
 };
 
 function getStoredProducts(): Product[] {
@@ -134,6 +161,9 @@ export async function sendTelegramOrderAlert(order: Order, settings: CompanySett
   const gpsInfo = order.customer.googleMapsUrl
     ? `\n🗺️ <b>GPS Map:</b> <a href="${order.customer.googleMapsUrl}">Open Google Maps</a>`
     : '';
+  const deliveryInfo = order.deliveryMethod
+    ? `🚚 <b>Delivery:</b> ${order.deliveryMethod} (${order.deliveryFee > 0 ? `$${order.deliveryFee.toFixed(2)}` : 'Free'})\n`
+    : '';
 
   const captionText =
     `🔔 <b>NEW HARDWARE ORDER RECEIVED!</b>\n` +
@@ -141,11 +171,14 @@ export async function sendTelegramOrderAlert(order: Order, settings: CompanySett
     `🔖 <b>Order ID:</b> <code>${order.orderNumber}</code>\n` +
     `👤 <b>Customer:</b> ${order.customer.fullName}${customerTelegram}\n` +
     `📱 <b>Phone:</b> <a href="tel:${order.customer.phoneNumber}">${order.customer.phoneNumber}</a>\n` +
-    `📍 <b>Delivery:</b> ${order.customer.detailedAddress}, ${order.customer.provinceOrCity}${gpsInfo}\n` +
+    `${deliveryInfo}` +
+    `📍 <b>Location:</b> ${order.customer.detailedAddress}, ${order.customer.provinceOrCity}${gpsInfo}\n` +
     `${order.customer.orderNotes ? `📝 <b>Note:</b> ${order.customer.orderNotes}\n` : ''}` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
     `🛒 <b>Hardware Items:</b>\n${itemsList}\n` +
     `━━━━━━━━━━━━━━━━━━━━\n` +
+    `💵 <b>Subtotal:</b> $${order.subtotal.toFixed(2)}\n` +
+    `🚚 <b>Delivery Fee:</b> ${order.deliveryFee > 0 ? `$${order.deliveryFee.toFixed(2)}` : 'Free'}\n` +
     `💰 <b>Total Amount:</b> <b>$${order.totalAmount.toFixed(2)} USD</b>\n` +
     `💳 <b>Payment:</b> ${formatPaymentMethodName(order.paymentMethod)}\n` +
     `⚡ <b>Status:</b> ⏳ <b>Pending Verification</b>`;
@@ -592,6 +625,10 @@ export const apiService = {
             paymentMethods: {
               ...defaultPaymentMethods,
               ...(parsed.paymentMethods || {}),
+            },
+            deliveryMethods: {
+              ...defaultDeliveryMethods,
+              ...(parsed.deliveryMethods || {}),
             },
           };
         }

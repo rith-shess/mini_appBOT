@@ -106,6 +106,7 @@ export interface Order {
   items: CartItem[];
   subtotal: number;
   deliveryFee: number;
+  deliveryMethod?: string;
   totalAmount: number;
   paymentMethod: PaymentMethod;
   paymentProofUrl?: string;
@@ -118,9 +119,28 @@ export interface Order {
   verifiedAt?: string;
 }
 
+export type DeliveryMethodId = 'pickup' | 'vet' | 'jnt';
+
+export interface DeliveryMethodConfig {
+  id: DeliveryMethodId;
+  name: string;
+  subtitle: string;
+  fee: number;
+  logoUrl?: string;
+  enabled: boolean;
+}
+
+export interface DeliveryMethodsSettings {
+  pickup: DeliveryMethodConfig;
+  vet: DeliveryMethodConfig;
+  jnt: DeliveryMethodConfig;
+}
+
 export interface CompanySettings {
   companyName: string;
   tagline: string;
+  logoUrl?: string;
+  headerBadge?: string;
   phoneNumber: string;
   telegramSupportUser: string;
   salesTelegramAccount: string;
@@ -134,6 +154,7 @@ export interface CompanySettings {
   adminPin: string;
   authorizedTelegramUsernames: string[];
   paymentMethods?: PaymentMethodsSettings;
+  deliveryMethods?: DeliveryMethodsSettings;
 }
 
 export type Language = 'en' | 'km';

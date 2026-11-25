@@ -3,14 +3,15 @@ import { ShoppingBag, Globe, ShieldCheck } from 'lucide-react';
 import { useTranslation } from '../../hooks/useTranslation';
 import { useCart } from '../../hooks/useCart';
 import { useTelegram } from '../../hooks/useTelegram';
-import { ActiveScreen } from '../../types';
+import { ActiveScreen, CompanySettings } from '../../types';
 
 interface HeaderProps {
   onNavigate: (screen: ActiveScreen) => void;
   currentScreen: ActiveScreen;
+  settings?: CompanySettings;
 }
 
-export const Header: React.FC<HeaderProps> = ({ onNavigate, currentScreen }) => {
+export const Header: React.FC<HeaderProps> = ({ onNavigate, currentScreen, settings }) => {
   const { language, setLanguage, t } = useTranslation();
   const { totalItems } = useCart();
   const { isTelegram, user } = useTelegram();
@@ -28,7 +29,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentScreen }) => 
           <span className="text-slate-300 truncate">
             {isTelegram
               ? `${t.telegram.tmaBadge} ${user ? `• @${user.username || user.firstName}` : ''}`
-              : `${t.telegram.browserModeBadge} • INFO POS`}
+              : `${t.telegram.browserModeBadge} • ${settings?.companyName || 'INFO POS'}`}
           </span>
         </div>
         <div className="flex items-center gap-2 text-slate-300">
@@ -49,22 +50,36 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentScreen }) => 
         {/* Brand Logo & Name */}
         <button
           onClick={() => onNavigate('home')}
-          className="flex items-center gap-2.5 text-left group focus:outline-none"
+          className="flex items-center gap-2.5 text-left group focus:outline-none min-w-0"
         >
-          <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-navy-900 via-navy-800 to-brand-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-navy-900/10 group-hover:scale-105 transition-transform">
-            <span className="tracking-tighter">IP</span>
-          </div>
-          <div>
-            <div className="flex items-center gap-1">
-              <span className="font-extrabold text-navy-900 text-base tracking-tight leading-none group-hover:text-brand-600 transition-colors">
-                INFO POS
-              </span>
-              <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200">
-                PRO
+          {settings?.logoUrl ? (
+            <div className="w-9 h-9 rounded-xl overflow-hidden bg-white border border-slate-200 shadow-md shadow-navy-900/10 flex items-center justify-center shrink-0 p-0.5 group-hover:scale-105 transition-transform">
+              <img
+                src={settings.logoUrl}
+                alt={settings.companyName || 'Store Logo'}
+                className="w-full h-full object-contain rounded-lg"
+              />
+            </div>
+          ) : (
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-navy-900 via-navy-800 to-brand-600 flex items-center justify-center text-white font-black text-lg shadow-md shadow-navy-900/10 group-hover:scale-105 transition-transform shrink-0">
+              <span className="tracking-tighter">
+                {settings?.companyName ? settings.companyName.trim().slice(0, 2).toUpperCase() : 'IP'}
               </span>
             </div>
-            <p className="text-[11px] text-slate-500 font-medium leading-tight line-clamp-1">
-              Hardware Solutions
+          )}
+          <div className="min-w-0">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="font-extrabold text-navy-900 text-base tracking-tight leading-none group-hover:text-brand-600 transition-colors truncate max-w-[150px] sm:max-w-xs">
+                {settings?.companyName || 'INFO POS'}
+              </span>
+              {settings?.headerBadge !== '' && (
+                <span className="text-[10px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200 shrink-0">
+                  {settings?.headerBadge || 'PRO'}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-slate-500 font-medium leading-tight line-clamp-1 truncate">
+              {settings?.tagline || 'Hardware Solutions'}
             </p>
           </div>
         </button>

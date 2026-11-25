@@ -17,13 +17,15 @@ import {
   Navigation,
   Copy,
   Check,
+  Store,
+  Truck,
 } from 'lucide-react';
 import { useCart } from '../hooks/useCart';
 import { useTranslation } from '../hooks/useTranslation';
 import { formatUSD } from '../utils/formatters';
 import { useTelegram } from '../hooks/useTelegram';
-import { apiService, defaultCompanySettings } from '../services/api';
-import { PaymentMethod, Order, CompanySettings } from '../types';
+import { apiService, defaultCompanySettings, defaultDeliveryMethods } from '../services/api';
+import { PaymentMethod, Order, CompanySettings, DeliveryMethodId } from '../types';
 
 interface CheckoutPageProps {
   onBack: () => void;
@@ -66,6 +68,18 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
   // Company & Payment Settings
   const [settings, setSettings] = useState<CompanySettings>(defaultCompanySettings);
   const [copiedField, setCopiedField] = useState<string | null>(null);
+
+  // Delivery Method (3 choices matching user specs: Pick Up, VET, J&T)
+  const [deliveryMethodId, setDeliveryMethodId] = useState<DeliveryMethodId>('pickup');
+
+  const deliveryMethods = settings.deliveryMethods || defaultDeliveryMethods;
+  const pickupConfig = deliveryMethods.pickup || defaultDeliveryMethods.pickup;
+  const vetConfig = deliveryMethods.vet || defaultDeliveryMethods.vet;
+  const jntConfig = deliveryMethods.jnt || defaultDeliveryMethods.jnt;
+
+  const activeDeliveryConfig = deliveryMethods[deliveryMethodId] || defaultDeliveryMethods[deliveryMethodId];
+  const activeDeliveryFee = activeDeliveryConfig?.fee ?? (deliveryMethodId === 'pickup' ? 0 : 1.50);
+  const calculatedTotal = subtotal + activeDeliveryFee;
 
   useEffect(() => {
     apiService.getSettings().then((s) => setSettings(s));
@@ -197,12 +211,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
     }
 
     if (!phoneNumber.trim() || phoneNumber.length < 8) {
-      setErrorMessage('Please provide a valid phone number for delivery confirmation');
+      setErrorMessage('Please provide a valid phone number for order/delivery confirmation');
       return;
     }
 
-    if (!detailedAddress.trim()) {
-      setErrorMessage('Please enter your street address or shop location');
+    if (deliveryMethodId !== 'pickup' && !detailedAddress.trim()) {
+      setErrorMessage('Please enter your destination street address or location for courier delivery');
       return;
     }
 
@@ -220,8 +234,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
         customer: {
           fullName: fullName.trim(),
           phoneNumber: phoneNumber.trim(),
-          provinceOrCity,
-          detailedAddress: detailedAddress.trim(),
+          provinceOrCity: deliveryMethodId === 'pickup' ? 'Phnom Penh (Store Pickup)' : provinceOrCity,
+          detailedAddress: detailedAddress.trim() || `${pickupConfig.name} - ${pickupConfig.subtitle}`,
           orderNotes: orderNotes.trim(),
           telegramUsername: user?.username ? `@${user.username}` : undefined,
           latitude: latitude || undefined,
@@ -233,8 +247,9 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
         },
         items,
         subtotal,
-        deliveryFee,
-        totalAmount,
+        deliveryFee: activeDeliveryFee,
+        deliveryMethod: `${activeDeliveryConfig.name} (${activeDeliveryConfig.subtitle})`,
+        totalAmount: calculatedTotal,
         paymentMethod,
         paymentProofUrl: screenshotPreview || undefined,
         paymentProofFileName: screenshotFileName || undefined,
@@ -277,11 +292,129 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
       )}
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Step 1: Customer Information Card */}
+        {/* Step 1: Delivery Method (3 Choices: Pick Up, VET, J&T EXPRESS) */}
+        <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-3.5">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide flex items-center gap-1.5">
+              <span className="w-5 h-5 rounded-full bg-navy-900 text-white text-[10px] flex items-center justify-center font-bold">
+                1
+              </span>
+              <span>Delivery Method</span>
+            </h2>
+            <span className="text-[11px] text-slate-500 font-semibold">3 Choices Available</span>
+          </div>
+
+          <div className="space-y-2.5">
+            {/* 1. Pick Up */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                setDeliveryMethodId('pickup');
+              }}
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                deliveryMethodId === 'pickup'
+                  ? 'border-sky-400 bg-sky-50/40 ring-2 ring-sky-200/70 shadow-sm'
+                  : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+              }`}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-500 shrink-0 shadow-xs">
+                  <Store className="w-6 h-6 stroke-[1.8]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-extrabold text-navy-900 text-sm sm:text-base leading-tight">
+                    {pickupConfig.name}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                    {pickupConfig.subtitle}
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200/60">
+                  {pickupConfig.fee === 0 ? 'Free' : formatUSD(pickupConfig.fee)}
+                </span>
+              </div>
+            </button>
+
+            {/* 2. VET */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                setDeliveryMethodId('vet');
+              }}
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                deliveryMethodId === 'vet'
+                  ? 'border-sky-400 bg-sky-50/40 ring-2 ring-sky-200/70 shadow-sm'
+                  : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+              }`}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-[#E85D04] text-white flex flex-col items-center justify-center shrink-0 shadow-xs p-1">
+                  <div className="border border-white/90 rounded px-1 text-[11px] font-black tracking-wider leading-tight">
+                    VET
+                  </div>
+                  <div className="w-7 h-[2px] bg-white/90 mt-0.5 rounded-full" />
+                </div>
+                <div className="min-w-0">
+                  <div className="font-extrabold text-navy-900 text-sm sm:text-base leading-tight">
+                    {vetConfig.name}
+                  </div>
+                  <div className="text-xs text-slate-600 font-medium truncate mt-0.5">
+                    {vetConfig.subtitle}
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className="text-base font-black text-rose-500 font-mono">
+                  {formatUSD(vetConfig.fee)}
+                </span>
+              </div>
+            </button>
+
+            {/* 3. J&T EXPRESS */}
+            <button
+              type="button"
+              onClick={() => {
+                triggerHaptic('light');
+                setDeliveryMethodId('jnt');
+              }}
+              className={`w-full text-left p-3.5 rounded-2xl border transition-all flex items-center justify-between gap-3 ${
+                deliveryMethodId === 'jnt'
+                  ? 'border-sky-400 bg-sky-50/40 ring-2 ring-sky-200/70 shadow-sm'
+                  : 'border-slate-200/90 bg-white hover:border-slate-300 hover:bg-slate-50/50'
+              }`}
+            >
+              <div className="flex items-center gap-3.5 min-w-0">
+                <div className="w-12 h-12 rounded-xl bg-[#E60012] text-white flex flex-col items-center justify-center shrink-0 shadow-xs p-1">
+                  <span className="font-black italic text-xs tracking-tighter leading-none">J&T</span>
+                  <span className="text-[7.5px] font-extrabold tracking-widest uppercase scale-90 leading-tight">EXPRESS</span>
+                </div>
+                <div className="min-w-0">
+                  <div className="font-extrabold text-navy-900 text-sm sm:text-base leading-tight">
+                    {jntConfig.name}
+                  </div>
+                  <div className="text-xs text-slate-500 font-medium truncate mt-0.5">
+                    {jntConfig.subtitle}
+                  </div>
+                </div>
+              </div>
+              <div className="shrink-0 text-right">
+                <span className="text-base font-black text-rose-500 font-mono">
+                  {formatUSD(jntConfig.fee)}
+                </span>
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Step 2: Customer Information Card */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-4">
           <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide flex items-center gap-1.5">
             <span className="w-5 h-5 rounded-full bg-navy-900 text-white text-[10px] flex items-center justify-center font-bold">
-              1
+              2
             </span>
             <span>{t.checkout.customerInfo}</span>
           </h2>
@@ -315,22 +448,34 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               />
             </div>
 
-            <div>
-              <label className="block text-xs font-bold text-navy-900 mb-1">
-                {t.checkout.deliveryLocation} <span className="text-red-500">*</span>
-              </label>
-              <select
-                value={provinceOrCity}
-                onChange={(e) => setProvinceOrCity(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all"
-              >
-                {CAMBODIA_PROVINCES.map((p) => (
-                  <option key={p} value={p}>
-                    {p}
-                  </option>
-                ))}
-              </select>
-            </div>
+            {deliveryMethodId === 'pickup' ? (
+              <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200/80 text-sky-900 text-xs flex items-start gap-2.5">
+                <Store className="w-4 h-4 text-sky-600 shrink-0 mt-0.5" />
+                <div>
+                  <div className="font-bold text-navy-900">{pickupConfig.name}: {pickupConfig.subtitle}</div>
+                  <div className="text-[11px] text-slate-600 mt-1 leading-relaxed">
+                    Store pickup selected. Please provide your contact phone above so our branch staff can notify you when your hardware order is prepared.
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <label className="block text-xs font-bold text-navy-900 mb-1">
+                    {t.checkout.deliveryLocation} <span className="text-red-500">*</span>
+                  </label>
+                  <select
+                    value={provinceOrCity}
+                    onChange={(e) => setProvinceOrCity(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs sm:text-sm text-navy-900 focus:outline-none focus:border-brand-500 focus:bg-white transition-all"
+                  >
+                    {CAMBODIA_PROVINCES.map((p) => (
+                      <option key={p} value={p}>
+                        {p}
+                      </option>
+                    ))}
+                  </select>
+                </div>
 
             {/* Detailed Address with GPS Location Helper */}
             <div>
@@ -383,6 +528,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
                 <p className="mt-1.5 text-[11px] text-red-600 font-medium">{locationError}</p>
               )}
             </div>
+            </>
+            )}
 
             <div>
               <label className="block text-xs font-bold text-navy-900 mb-1">
@@ -399,11 +546,11 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
           </div>
         </div>
 
-        {/* Step 2: Payment Method Selection */}
+        {/* Step 3: Payment Method Selection */}
         <div className="bg-white rounded-3xl p-5 border border-slate-200/80 shadow-subtle space-y-4">
           <h2 className="text-sm font-bold text-navy-900 uppercase tracking-wide flex items-center gap-1.5">
             <span className="w-5 h-5 rounded-full bg-navy-900 text-white text-[10px] flex items-center justify-center font-bold">
-              2
+              3
             </span>
             <span>{t.checkout.paymentMethod}</span>
           </h2>
@@ -707,12 +854,17 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ onBack, onOrderSucce
               <span>{formatUSD(subtotal)}</span>
             </div>
             <div className="flex justify-between text-slate-500">
-              <span>{t.common.deliveryFee}</span>
-              <span className="text-emerald-600 font-semibold">{t.common.free}</span>
+              <span className="flex items-center gap-1">
+                <span>{t.common.deliveryFee}</span>
+                <span className="text-[10px] text-slate-400">({activeDeliveryConfig.name})</span>
+              </span>
+              <span className={activeDeliveryFee === 0 ? "text-emerald-600 font-semibold" : "text-navy-900 font-bold font-mono"}>
+                {activeDeliveryFee === 0 ? t.common.free : formatUSD(activeDeliveryFee)}
+              </span>
             </div>
             <div className="flex justify-between text-sm font-black text-navy-900 pt-1 border-t border-slate-100">
               <span>{t.common.total}</span>
-              <span className="text-base text-brand-700">{formatUSD(totalAmount)}</span>
+              <span className="text-base text-brand-700">{formatUSD(calculatedTotal)}</span>
             </div>
           </div>
 

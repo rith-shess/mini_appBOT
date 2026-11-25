@@ -142,8 +142,15 @@ export const OrderConfirmationPage: React.FC<OrderConfirmationPageProps> = ({
             <span>{formatUSD(order.subtotal)}</span>
           </div>
           <div className="flex justify-between text-slate-500">
-            <span>{t.common.deliveryFee}</span>
-            <span className="text-emerald-600 font-semibold">{t.common.free}</span>
+            <span className="flex items-center gap-1">
+              <span>{t.common.deliveryFee}</span>
+              {order.deliveryMethod && (
+                <span className="text-[10px] text-slate-400">({order.deliveryMethod})</span>
+              )}
+            </span>
+            <span className={order.deliveryFee === 0 ? "text-emerald-600 font-semibold" : "text-navy-900 font-bold font-mono"}>
+              {order.deliveryFee === 0 ? t.common.free : formatUSD(order.deliveryFee)}
+            </span>
           </div>
           <div className="flex justify-between text-sm font-black text-navy-900 pt-1.5 border-t border-slate-100">
             <span>{t.common.total}</span>

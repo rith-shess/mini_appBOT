@@ -29,6 +29,8 @@ import {
   CreditCard,
   QrCode,
   Video,
+  Store,
+  Truck,
 } from 'lucide-react';
 import { Product, Order, CompanySettings, CategoryId, PaymentVerificationStatus, ActiveScreen } from '../types';
 import { apiService, defaultCompanySettings } from '../services/api';
@@ -93,9 +95,49 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   const [formIsLatest, setFormIsLatest] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const abaQrInputRef = useRef<HTMLInputElement | null>(null);
   const bakongQrInputRef = useRef<HTMLInputElement | null>(null);
   const kbQrInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleLogoUpload = (file: File) => {
+    if (!file.type.startsWith('image/')) {
+      alert('Please upload a valid image file (PNG, JPG, SVG, WebP).');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      if (e.target?.result) {
+        setSettings((prev) => ({
+          ...prev,
+          logoUrl: e.target?.result as string,
+        }));
+        triggerHaptic('success');
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const updateDeliveryMethodConfig = (
+    method: 'pickup' | 'vet' | 'jnt',
+    field: string,
+    value: any
+  ) => {
+    setSettings((prev) => {
+      const dm = prev.deliveryMethods || defaultCompanySettings.deliveryMethods!;
+      const current = dm[method] || defaultCompanySettings.deliveryMethods![method];
+      return {
+        ...prev,
+        deliveryMethods: {
+          ...dm,
+          [method]: {
+            ...current,
+            [field]: value,
+          },
+        },
+      };
+    });
+  };
 
   const updatePaymentMethodConfig = (
     method: 'aba' | 'bakong' | 'kb',
@@ -1479,15 +1521,319 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
             )}
           </div>
 
-          <div className="space-y-3">
-            <div>
-              <label className="block font-bold text-navy-900 mb-1">Company Name</label>
-              <input
-                type="text"
-                value={settings.companyName}
-                onChange={(e) => setSettings({ ...settings, companyName: e.target.value })}
-                className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl"
-              />
+          <div className="space-y-4">
+            {/* Header & Store Branding Customization */}
+            <div className="p-4 rounded-2xl bg-gradient-to-br from-slate-50 to-brand-50/40 border border-brand-200/80 space-y-3.5">
+              <div className="flex items-center justify-between">
+                <label className="block font-bold text-navy-900 flex items-center gap-1.5 text-xs">
+                  <ImageIcon className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Store Branding & Header Logo</span>
+                </label>
+                <span className="text-[10px] px-2 py-0.5 rounded-full bg-brand-100 text-brand-800 font-bold">
+                  Header Customization
+                </span>
+              </div>
+
+              {/* Live Header Preview */}
+              <div className="p-3 bg-white rounded-xl border border-slate-200 shadow-xs">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block mb-1.5">
+                  Live Header Preview
+                </span>
+                <div className="flex items-center gap-2.5 p-2 bg-slate-50 rounded-xl border border-slate-200/70">
+                  {settings.logoUrl ? (
+                    <div className="w-9 h-9 rounded-xl overflow-hidden bg-white border border-slate-200 shadow-sm flex items-center justify-center shrink-0 p-0.5">
+                      <img src={settings.logoUrl} alt="Logo" className="w-full h-full object-contain rounded-lg" />
+                    </div>
+                  ) : (
+                    <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-navy-900 via-navy-800 to-brand-600 flex items-center justify-center text-white font-black text-lg shadow-sm shrink-0">
+                      <span className="tracking-tighter">
+                        {settings.companyName ? settings.companyName.trim().slice(0, 2).toUpperCase() : 'IP'}
+                      </span>
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="font-extrabold text-navy-900 text-sm tracking-tight leading-none truncate">
+                        {settings.companyName || 'INFO POS'}
+                      </span>
+                      {settings.headerBadge !== '' && (
+                        <span className="text-[9px] uppercase font-bold tracking-wider px-1.5 py-0.5 rounded-full bg-brand-50 text-brand-700 border border-brand-200 shrink-0">
+                          {settings.headerBadge || 'PRO'}
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[10px] text-slate-500 font-medium leading-tight truncate mt-0.5">
+                      {settings.tagline || 'Hardware Solutions'}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Logo Controls */}
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Header Logo (Upload Image or Paste URL)
+                </label>
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    ref={logoInputRef}
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleLogoUpload(file);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => logoInputRef.current?.click()}
+                    className="py-2 px-3 rounded-xl bg-white border border-slate-300 hover:bg-slate-50 text-navy-900 font-bold text-xs flex items-center gap-1.5 shadow-xs"
+                  >
+                    <Upload className="w-3.5 h-3.5 text-brand-600" />
+                    <span>Upload Logo Image</span>
+                  </button>
+                  {settings.logoUrl && (
+                    <button
+                      type="button"
+                      onClick={() => setSettings({ ...settings, logoUrl: '' })}
+                      className="py-2 px-3 rounded-xl bg-red-50 hover:bg-red-100 text-red-600 font-bold text-xs flex items-center gap-1 border border-red-200"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                      <span>Reset to Default IP</span>
+                    </button>
+                  )}
+                </div>
+                <input
+                  type="text"
+                  value={settings.logoUrl || ''}
+                  onChange={(e) => setSettings({ ...settings, logoUrl: e.target.value })}
+                  placeholder="Or paste Logo Image URL (https://...)"
+                  className="w-full mt-2 py-1.5 px-3 bg-white border border-slate-200 rounded-xl text-xs font-mono"
+                />
+              </div>
+
+              {/* Name, Badge, Subtitle Inputs */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Header Name (Store Title) *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={settings.companyName}
+                    onChange={(e) => setSettings({ ...settings, companyName: e.target.value })}
+                    placeholder="e.g. INFO POS"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-navy-900 text-xs"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Header Badge / Tag
+                  </label>
+                  <input
+                    type="text"
+                    value={settings.headerBadge !== undefined ? settings.headerBadge : 'PRO'}
+                    onChange={(e) => setSettings({ ...settings, headerBadge: e.target.value })}
+                    placeholder="e.g. PRO, OFFICIAL (or leave empty)"
+                    className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl font-bold text-navy-900 text-xs"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Header Subtitle / Tagline
+                </label>
+                <input
+                  type="text"
+                  value={settings.tagline}
+                  onChange={(e) => setSettings({ ...settings, tagline: e.target.value })}
+                  placeholder="e.g. Hardware Solutions"
+                  className="w-full py-2 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-700"
+                />
+              </div>
+            </div>
+
+            {/* Delivery Methods Configuration (Pick Up, VET, J&T) */}
+            <div className="p-4 rounded-2xl bg-white border border-slate-200/90 shadow-xs space-y-3.5">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                <label className="block font-bold text-navy-900 flex items-center gap-1.5 text-xs">
+                  <Truck className="w-3.5 h-3.5 text-brand-600" />
+                  <span>Delivery Methods Configuration (3 Choices)</span>
+                </label>
+                <span className="text-[10px] text-slate-500 font-medium">Customer Checkout</span>
+              </div>
+
+              {/* 1. Pick Up */}
+              <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-sky-50 border border-sky-100 flex items-center justify-center text-sky-500">
+                      <Store className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-navy-900 text-xs">Choice 1: Pick Up</span>
+                      <span className="text-[10px] text-slate-400 block">Customer in-store pickup</span>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.deliveryMethods?.pickup?.enabled ?? true}
+                      onChange={(e) => updateDeliveryMethodConfig('pickup', 'enabled', e.target.checked)}
+                      className="rounded text-brand-600"
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Display Title</label>
+                    <input
+                      type="text"
+                      value={settings.deliveryMethods?.pickup?.name || 'Pick Up'}
+                      onChange={(e) => updateDeliveryMethodConfig('pickup', 'name', e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Store Branch / Subtitle</label>
+                    <input
+                      type="text"
+                      value={settings.deliveryMethods?.pickup?.subtitle || 'Store Branch Sophea Store'}
+                      onChange={(e) => updateDeliveryMethodConfig('pickup', 'subtitle', e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="w-32">
+                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Delivery Fee (USD)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={settings.deliveryMethods?.pickup?.fee ?? 0}
+                    onChange={(e) => updateDeliveryMethodConfig('pickup', 'fee', Number(e.target.value))}
+                    className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold"
+                  />
+                </div>
+              </div>
+
+              {/* 2. VET */}
+              <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#E85D04] text-white flex flex-col items-center justify-center font-black p-0.5">
+                      <span className="text-[8px] border border-white/80 rounded px-0.5 leading-none">VET</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-navy-900 text-xs">Choice 2: VET (Virak Buntham)</span>
+                      <span className="text-[10px] text-slate-400 block">Express Bus & Logistics</span>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.deliveryMethods?.vet?.enabled ?? true}
+                      onChange={(e) => updateDeliveryMethodConfig('vet', 'enabled', e.target.checked)}
+                      className="rounded text-brand-600"
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Display Title</label>
+                    <input
+                      type="text"
+                      value={settings.deliveryMethods?.vet?.name || 'VET'}
+                      onChange={(e) => updateDeliveryMethodConfig('vet', 'name', e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Subtitle (Khmer / Details)</label>
+                    <input
+                      type="text"
+                      value={settings.deliveryMethods?.vet?.subtitle || 'វីរៈប៊ុនថាំង'}
+                      onChange={(e) => updateDeliveryMethodConfig('vet', 'subtitle', e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="w-32">
+                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Delivery Fee (USD)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={settings.deliveryMethods?.vet?.fee ?? 1.5}
+                    onChange={(e) => updateDeliveryMethodConfig('vet', 'fee', Number(e.target.value))}
+                    className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-rose-600"
+                  />
+                </div>
+              </div>
+
+              {/* 3. J&T EXPRESS */}
+              <div className="p-3 rounded-xl bg-slate-50/80 border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-[#E60012] text-white flex flex-col items-center justify-center font-black p-0.5">
+                      <span className="italic text-[9px] leading-none">J&T</span>
+                    </div>
+                    <div>
+                      <span className="font-bold text-navy-900 text-xs">Choice 3: J&T EXPRESS</span>
+                      <span className="text-[10px] text-slate-400 block">Express Delivery Service</span>
+                    </div>
+                  </div>
+                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={settings.deliveryMethods?.jnt?.enabled ?? true}
+                      onChange={(e) => updateDeliveryMethodConfig('jnt', 'enabled', e.target.checked)}
+                      className="rounded text-brand-600"
+                    />
+                    <span>Active</span>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Display Title</label>
+                    <input
+                      type="text"
+                      value={settings.deliveryMethods?.jnt?.name || 'J&T EXPRESS'}
+                      onChange={(e) => updateDeliveryMethodConfig('jnt', 'name', e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Subtitle (Details)</label>
+                    <input
+                      type="text"
+                      value={settings.deliveryMethods?.jnt?.subtitle || 'J&T Express'}
+                      onChange={(e) => updateDeliveryMethodConfig('jnt', 'subtitle', e.target.value)}
+                      className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs"
+                    />
+                  </div>
+                </div>
+
+                <div className="w-32">
+                  <label className="block text-[10px] font-bold text-slate-600 mb-0.5">Delivery Fee (USD)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={settings.deliveryMethods?.jnt?.fee ?? 1.5}
+                    onChange={(e) => updateDeliveryMethodConfig('jnt', 'fee', Number(e.target.value))}
+                    className="w-full py-1.5 px-2.5 bg-white border border-slate-200 rounded-lg text-xs font-mono font-bold text-rose-600"
+                  />
+                </div>
+              </div>
             </div>
 
             <div>
