@@ -28,6 +28,26 @@ async function sendMessage(chatId, text, extra = {}) {
   }
 }
 
+
+async function setMenuButton(chatId) {
+  try {
+    await fetch(`${TG_API}/setChatMenuButton`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        chat_id: String(chatId),
+        menu_button: {
+          type: 'web_app',
+          text: 'Shop',
+          web_app: { url: MINI_APP_URL }
+        }
+      })
+    });
+  } catch (err) {
+    console.error(`setChatMenuButton error to ${chatId}:`, err);
+  }
+}
+
 async function answerCallback(callbackQueryId, text) {
   try {
     await fetch(`${TG_API}/answerCallbackQuery`, {
@@ -73,6 +93,8 @@ export default async function handler(req, res) {
       const text = msg.text || '';
 
       if (chatId && text.startsWith('/start')) {
+        // Automatically enforce bottom-left menu button to "Shop" -> MINI_APP_URL
+        setMenuButton(chatId).catch(() => {});
         const username = msg.from?.username ? `@${msg.from.username}` : (msg.from?.first_name || 'Customer');
 
         const welcomeMessage =
