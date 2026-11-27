@@ -1,7 +1,7 @@
 // Vercel Serverless Function — handles Telegram Bot Webhook
 // URL: https://mini-app-bot-eight.vercel.app/api/webhook
 
-const BOT_TOKEN = '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
 const MINI_APP_URL = 'https://mini-app-bot-eight.vercel.app/';
 const SALES_CHAT_ID = '1256184682'; // @Skybalsupport
 

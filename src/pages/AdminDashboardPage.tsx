@@ -383,7 +383,7 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setTestResult(null);
     triggerHaptic('medium');
 
-    const token = '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+    const token = settings.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
     const salesAccount = settings.salesTelegramAccount?.replace('@', '').trim() || 'Skybalsupport';
     const targetChatIds = ['1256184682'];
     if (user?.id && !targetChatIds.includes(String(user.id))) {

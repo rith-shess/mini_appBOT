@@ -32,3 +32,8 @@ vite.config.js
 .env
 .env.production
 .env.local
+
+# Environment & Secrets
+.env.*
+*.env
+.env.development

@@ -70,7 +70,7 @@ export const defaultCompanySettings: CompanySettings = {
   phoneNumber: '+855 (0) 23 999 888 / +855 (0) 12 345 678',
   telegramSupportUser: 'Skybalsupport',
   salesTelegramAccount: '@Skybalsupport',
-  telegramBotToken: '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug',
+  telegramBotToken: (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo',
   salesTelegramChatId: '1256184682',
   facebookUrl: 'https://facebook.com/infoposhardware',
   showroomAddress: 'Building 48, Blvd. Mao Tse Toung, Chamkarmon, Phnom Penh, Cambodia',
@@ -140,7 +140,7 @@ export function formatPaymentMethodName(pm: PaymentMethod): string {
  * Can be called directly from frontend to send alerts to the sales team chat
  */
 export async function sendTelegramOrderAlert(order: Order, settings: CompanySettings): Promise<{ success: boolean; message?: string }> {
-  const token = settings.telegramBotToken || '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+  const token = settings.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
   
   // Always send directly to verified sales chat ID for @Skybalsupport (1256184682)
   const chatIds: string[] = ['1256184682'];
@@ -267,7 +267,7 @@ export async function sendCustomerTelegramAlert(
   status: PaymentVerificationStatus,
   settings: CompanySettings
 ): Promise<boolean> {
-  const token = settings.telegramBotToken || '8327064995:AAFA7n4JkAUYzOv3I7evyQtVFTNYYwe_Aug';
+  const token = settings.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
   
   let targetChatId = order.telegramUserId;
   if (!targetChatId && order.customer.telegramUsername) {
