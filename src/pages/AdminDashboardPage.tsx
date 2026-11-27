@@ -1,3 +1,4 @@
+import { compressImage } from '../utils/image';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Shield,
@@ -250,12 +251,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      setFormImage(event.target?.result as string);
-      triggerHaptic('light');
-    };
-    reader.readAsDataURL(file);
+    compressImage(file)
+      .then((dataUrl) => {
+        setFormImage(dataUrl);
+        triggerHaptic('light');
+      })
+      .catch(() => alert('Could not process this image. Please try another photo.'));
   };
 
   // Open Form for Adding New Product
@@ -334,10 +335,15 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       ],
     };
 
-    if (editingProduct) {
-      await apiService.updateProduct(payload);
-    } else {
-      await apiService.addProduct(payload);
+    try {
+      if (editingProduct) {
+        await apiService.updateProduct(payload);
+      } else {
+        await apiService.addProduct(payload);
+      }
+    } catch (err) {
+      alert(`Could not save product: ${err instanceof Error ? err.message : 'unknown error'}`);
+      return;
     }
 
     triggerHaptic('success');
@@ -350,7 +356,12 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
   // Delete Product
   const handleDeleteProduct = async (id: string, name: string) => {
     if (window.confirm(`Are you sure you want to delete "${name}"?`)) {
-      await apiService.deleteProduct(id);
+      try {
+        await apiService.deleteProduct(id);
+      } catch (err) {
+        alert(`Could not delete product: ${err instanceof Error ? err.message : 'unknown error'}`);
+        return;
+      }
       triggerHaptic('warning');
       loadDashboardData();
       if (onRefreshData) onRefreshData();
@@ -383,7 +394,6 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     setTestResult(null);
     triggerHaptic('medium');
 
-    const token = settings.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
     const salesAccount = settings.salesTelegramAccount?.replace('@', '').trim() || 'Skybalsupport';
     const targetChatIds = ['1256184682'];
     if (user?.id && !targetChatIds.includes(String(user.id))) {
@@ -391,36 +401,19 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
     }
 
     try {
-      let sent = false;
-      let lastErr = '';
+      const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData || '' : '';
+      const res = await fetch('/api/test-alert', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          salesAccount,
+          targetChatIds,
+          initData,
+        }),
+      });
+      const data = await res.json();
 
-      for (const cid of targetChatIds) {
-        const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            chat_id: cid,
-            text: `🔔 <b>TEST ALERT from INFO POS Hardware</b>\n━━━━━━━━━━━━━━━━━━━━\nSales Account: <b>@${salesAccount}</b>\nStatus: 🟢 <b>Connected & Active</b>\n\nYour sales desk is linked! Customer orders with payment receipts and GPS locations will arrive here in real time.`,
-            parse_mode: 'HTML',
-            reply_markup: {
-              inline_keyboard: [
-                [
-                  { text: '✅ Approve Payment', callback_data: 'verify:test' },
-                  { text: '❌ Reject Payment', callback_data: 'reject:test' },
-                ],
-              ],
-            },
-          }),
-        });
-        const data = await res.json();
-        if (data.ok) {
-          sent = true;
-        } else {
-          lastErr = data.description;
-        }
-      }
-
-      if (sent) {
+      if (data?.ok) {
         setTestResult({
           success: true,
           message: `🎉 Success! Test alert with [Approve] & [Reject] buttons was sent to @${salesAccount}. Check Telegram!`,
@@ -429,14 +422,14 @@ export const AdminDashboardPage: React.FC<AdminDashboardPageProps> = ({
       } else {
         setTestResult({
           success: false,
-          message: `Telegram Error: "${lastErr}". (Make sure @${salesAccount} has opened @InfoPOSMini_StoreBot and clicked /start).`,
+          message: data?.error || `Telegram Error. (Make sure @${salesAccount} has opened @InfoPOSMini_StoreBot and clicked /start).`,
         });
         triggerHaptic('error');
       }
     } catch (e: any) {
       setTestResult({
         success: false,
-        message: e.message || 'Network error reaching api.telegram.org.',
+        message: e.message || 'Network error reaching test alert endpoint.',
       });
       triggerHaptic('error');
     } finally {

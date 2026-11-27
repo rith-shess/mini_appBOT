@@ -1,9 +1,9 @@
 // Vercel Serverless Function — handles Telegram Bot Webhook
 // URL: https://mini-app-bot-eight.vercel.app/api/webhook
 
-const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || process.env.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+const WEBHOOK_SECRET = process.env.TELEGRAM_WEBHOOK_SECRET;
 const MINI_APP_URL = 'https://mini-app-bot-eight.vercel.app/';
-const SALES_CHAT_ID = '1256184682'; // @Skybalsupport
 
 const TG_API = `https://api.telegram.org/bot${BOT_TOKEN}`;
 
@@ -27,7 +27,6 @@ async function sendMessage(chatId, text, extra = {}) {
     return { ok: false, error: String(err) };
   }
 }
-
 
 async function setMenuButton(chatId) {
   try {
@@ -61,13 +60,32 @@ async function answerCallback(callbackQueryId, text) {
 }
 
 export default async function handler(req, res) {
-  // Allow GET for simple health check
+  // Disallow permissive CORS
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+
+  // Allow GET for simple health check (returns active status without secrets)
   if (req.method === 'GET') {
     return res.status(200).json({ ok: true, status: 'INFO POS Telegram Bot Webhook Active' });
   }
 
   if (req.method !== 'POST') {
+    res.setHeader('Allow', 'POST');
     return res.status(405).json({ ok: false, error: 'Method not allowed' });
+  }
+
+  // 1. Verify server environment configuration
+  if (!BOT_TOKEN || typeof BOT_TOKEN !== 'string' || !BOT_TOKEN.trim()) {
+    console.error('SERVER ERROR: TELEGRAM_BOT_TOKEN environment variable is missing.');
+    return res.status(500).json({ ok: false, error: 'Server misconfiguration: TELEGRAM_BOT_TOKEN is missing' });
+  }
+
+  // 2. Task 5: Verify X-Telegram-Bot-Api-Secret-Token against TELEGRAM_WEBHOOK_SECRET
+  if (WEBHOOK_SECRET && typeof WEBHOOK_SECRET === 'string' && WEBHOOK_SECRET.trim()) {
+    const receivedSecret = req.headers['x-telegram-bot-api-secret-token'];
+    if (!receivedSecret || receivedSecret !== WEBHOOK_SECRET.trim()) {
+      return res.status(401).json({ ok: false, error: 'Unauthorized webhook request: secret token mismatch' });
+    }
   }
 
   try {
@@ -84,9 +102,9 @@ export default async function handler(req, res) {
       return res.status(200).json({ ok: true, msg: 'Empty update received' });
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
     // 1. /start command — Welcomes user with personalized greeting & [🛒 Shop Now]
-    // ──────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
     if (update.message) {
       const msg = update.message;
       const chatId = msg.chat?.id;
@@ -120,9 +138,9 @@ export default async function handler(req, res) {
       }
     }
 
-    // ──────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
     // 2. Callback Queries (Sales Approve / Reject Buttons)
-    // ──────────────────────────────────────────────────────────────────────────
+    // ────────────────────────────────────────────────────────────────────────
     if (update.callback_query) {
       const cb = update.callback_query;
       const data = cb.data || '';
@@ -222,6 +240,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   } catch (err) {
     console.error('Webhook execution error:', err);
-    return res.status(200).json({ ok: false, error: String(err) });
+    return res.status(200).json({ ok: false, error: 'Webhook processing error' });
   }
 }

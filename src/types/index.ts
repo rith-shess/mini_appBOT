@@ -144,7 +144,6 @@ export interface CompanySettings {
   phoneNumber: string;
   telegramSupportUser: string;
   salesTelegramAccount: string;
-  telegramBotToken?: string;
   salesTelegramChatId?: string;
   facebookUrl: string;
   showroomAddress: string;

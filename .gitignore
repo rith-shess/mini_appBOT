@@ -28,12 +28,12 @@ vite.config.js
 *.sln
 *.sw?
 
-# Environment
+# Environment & Secrets (Never commit secrets to git)
 .env
-.env.production
-.env.local
-
-# Environment & Secrets
 .env.*
 *.env
-.env.development
+backend/.env
+backend/.env.*
+backend/*.env
+!.env.example
+!backend/.env.example

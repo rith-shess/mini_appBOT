@@ -70,7 +70,6 @@ export const defaultCompanySettings: CompanySettings = {
   phoneNumber: '+855 (0) 23 999 888 / +855 (0) 12 345 678',
   telegramSupportUser: 'Skybalsupport',
   salesTelegramAccount: '@Skybalsupport',
-  telegramBotToken: (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo',
   salesTelegramChatId: '1256184682',
   facebookUrl: 'https://facebook.com/infoposhardware',
   showroomAddress: 'Building 48, Blvd. Mao Tse Toung, Chamkarmon, Phnom Penh, Cambodia',
@@ -83,11 +82,72 @@ export const defaultCompanySettings: CompanySettings = {
   deliveryMethods: defaultDeliveryMethods,
 };
 
+// ---------- Shared product catalog (server-side, visible to every customer) ----------
+type RemoteResult =
+  | { status: 'ok'; products: Product[] }
+  | { status: 'unconfigured' }
+  | { status: 'unavailable' };
+
+async function fetchRemoteProducts(): Promise<RemoteResult> {
+  try {
+    const res = await fetch('/api/products', { cache: 'no-store' });
+    if (res.status === 503) return { status: 'unconfigured' };
+    if (!res.ok) return { status: 'unavailable' };
+    const json = await res.json();
+    if (json && Array.isArray(json.products)) return { status: 'ok', products: json.products };
+    return { status: 'unavailable' };
+  } catch {
+    return { status: 'unavailable' }; // e.g. local dev without /api
+  }
+}
+
+async function remoteProductWrite(body: Record<string, unknown>): Promise<void> {
+  const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData || '' : '';
+  const res = await fetch('/api/products', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ...body, initData }),
+  });
+  if (!res.ok) {
+    let msg = `Server error ${res.status}`;
+    try { msg = (await res.json()).error || msg; } catch {}
+    throw new Error(msg);
+  }
+}
+
+/** Shared list if available; otherwise the local list (defaults / dev mode). */
+async function loadProducts(): Promise<Product[]> {
+  const remote = await fetchRemoteProducts();
+  if (remote.status === 'ok' && remote.products.length > 0) return remote.products;
+  return getStoredProducts();
+}
+
+/**
+ * Runs an admin write against the shared database.
+ * Returns false when there is no /api (local dev) so the caller can fall back to localStorage.
+ */
+async function withSharedStore(write: () => Promise<void>): Promise<boolean> {
+  const remote = await fetchRemoteProducts();
+  if (remote.status === 'unavailable') return false;
+  if (remote.status === 'unconfigured') {
+    throw new Error('Shared database is not connected yet. Add Upstash Redis in Vercel > Storage, then redeploy.');
+  }
+  if (remote.products.length === 0) {
+    // First time: copy current catalog (defaults + anything saved on this device) to the shared database
+    await remoteProductWrite({ products: getStoredProducts() });
+  }
+  await write();
+  return true;
+}
+
 function getStoredProducts(): Product[] {
   try {
     const raw = localStorage.getItem(PRODUCTS_STORAGE_KEY);
     if (raw) {
       const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object') {
+            delete (parsed as any).telegramBotToken;
+          }
       if (Array.isArray(parsed) && parsed.length > 0) {
         let modified = false;
         parsed.forEach((p: Product) => {
@@ -136,193 +196,54 @@ export function formatPaymentMethodName(pm: PaymentMethod): string {
 }
 
 /**
- * Direct Telegram Bot API Alert Sender
- * Can be called directly from frontend to send alerts to the sales team chat
+ * Serverless Telegram Order Alert Sender
+ * Dispatches order details and receipt to serverless /api/send-order
  */
 export async function sendTelegramOrderAlert(order: Order, settings: CompanySettings): Promise<{ success: boolean; message?: string }> {
-  const token = settings.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
-  
-  // Always send directly to verified sales chat ID for @Skybalsupport (1256184682)
-  const chatIds: string[] = ['1256184682'];
-
-  // Add any custom numeric chat ID if provided in settings
-  if (settings.salesTelegramChatId && /^\d+$/.test(settings.salesTelegramChatId.trim())) {
-    const customId = settings.salesTelegramChatId.trim();
-    if (!chatIds.includes(customId)) {
-      chatIds.push(customId);
-    }
+  try {
+    const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData || '' : '';
+    const res = await fetch('/api/send-order', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        order,
+        settings,
+        initData,
+      }),
+    });
+    const data = await res.json();
+    return { success: Boolean(data?.ok), message: data?.error };
+  } catch (err: any) {
+    console.warn('Failed to send order alert via serverless endpoint:', err);
+    return { success: false, message: err?.message || 'Network error reaching order alert endpoint' };
   }
-
-  const itemsList = order.items
-    .map((item) => `• ${item.quantity}x ${item.product.name.en} ($${(item.product.price * item.quantity).toFixed(2)})`)
-    .join('\n');
-
-  const customerTelegram = order.customer.telegramUsername ? ` (${order.customer.telegramUsername})` : '';
-  const gpsInfo = order.customer.googleMapsUrl
-    ? `\n🗺️ <b>GPS Map:</b> <a href="${order.customer.googleMapsUrl}">Open Google Maps</a>`
-    : '';
-  const deliveryInfo = order.deliveryMethod
-    ? `🚚 <b>Delivery:</b> ${order.deliveryMethod} (${order.deliveryFee > 0 ? `$${order.deliveryFee.toFixed(2)}` : 'Free'})\n`
-    : '';
-
-  const captionText =
-    `🔔 <b>NEW HARDWARE ORDER RECEIVED!</b>\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `🔖 <b>Order ID:</b> <code>${order.orderNumber}</code>\n` +
-    `👤 <b>Customer:</b> ${order.customer.fullName}${customerTelegram}\n` +
-    `📱 <b>Phone:</b> <a href="tel:${order.customer.phoneNumber}">${order.customer.phoneNumber}</a>\n` +
-    `${deliveryInfo}` +
-    `📍 <b>Location:</b> ${order.customer.detailedAddress}, ${order.customer.provinceOrCity}${gpsInfo}\n` +
-    `${order.customer.orderNotes ? `📝 <b>Note:</b> ${order.customer.orderNotes}\n` : ''}` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `🛒 <b>Hardware Items:</b>\n${itemsList}\n` +
-    `━━━━━━━━━━━━━━━━━━━━\n` +
-    `💵 <b>Subtotal:</b> $${order.subtotal.toFixed(2)}\n` +
-    `🚚 <b>Delivery Fee:</b> ${order.deliveryFee > 0 ? `$${order.deliveryFee.toFixed(2)}` : 'Free'}\n` +
-    `💰 <b>Total Amount:</b> <b>$${order.totalAmount.toFixed(2)} USD</b>\n` +
-    `💳 <b>Payment:</b> ${formatPaymentMethodName(order.paymentMethod)}\n` +
-    `⚡ <b>Status:</b> ⏳ <b>Pending Verification</b>`;
-
-  const inlineKeyboard: any[] = [
-    [
-      {
-        text: '✅ Approve & Verify Payment',
-        callback_data: `verify:${order.orderNumber}:${order.telegramUserId || ''}`,
-      },
-      {
-        text: '❌ Reject Payment',
-        callback_data: `reject:${order.orderNumber}:${order.telegramUserId || ''}`,
-      },
-    ],
-  ];
-  if (order.customer.googleMapsUrl) {
-    inlineKeyboard.push([
-      { text: '📍 Open Customer GPS in Google Maps', url: order.customer.googleMapsUrl },
-    ]);
-  }
-
-  let anySuccess = false;
-
-  for (const chatId of chatIds) {
-    try {
-      if (order.paymentProofUrl && order.paymentProofUrl.startsWith('data:image/')) {
-        const matches = order.paymentProofUrl.match(/^data:([A-Za-z-+\/]+);base64,(.+)$/);
-        if (matches && matches.length === 3) {
-          const mimeType = matches[1];
-          const byteCharacters = atob(matches[2]);
-          const byteNumbers = new Array(byteCharacters.length);
-          for (let i = 0; i < byteCharacters.length; i++) {
-            byteNumbers[i] = byteCharacters.charCodeAt(i);
-          }
-          const byteArray = new Uint8Array(byteNumbers);
-          const blob = new Blob([byteArray], { type: mimeType });
-
-          const formData = new FormData();
-          formData.append('chat_id', chatId);
-          formData.append('caption', captionText);
-          formData.append('parse_mode', 'HTML');
-          formData.append('photo', blob, 'receipt.jpg');
-          if (inlineKeyboard.length > 0) {
-            formData.append('reply_markup', JSON.stringify({ inline_keyboard: inlineKeyboard }));
-          }
-
-          const res = await fetch(`https://api.telegram.org/bot${token}/sendPhoto`, {
-            method: 'POST',
-            body: formData,
-          });
-          const json = await res.json();
-          if (json.ok) {
-            anySuccess = true;
-            continue;
-          }
-        }
-      }
-
-      // Text fallback
-      const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          chat_id: chatId,
-          text: captionText,
-          parse_mode: 'HTML',
-          reply_markup: inlineKeyboard.length > 0 ? { inline_keyboard: inlineKeyboard } : undefined,
-        }),
-      });
-      const json = await res.json();
-      if (json.ok) anySuccess = true;
-    } catch (e) {
-      console.warn(`Failed sending alert to ${chatId}:`, e);
-    }
-  }
-
-  return { success: anySuccess };
 }
 
 /**
- * Direct Telegram Bot API Alert to the Customer when Order is Verified / Rejected
+ * Serverless Telegram Customer Alert Sender
+ * Dispatches verification status alert to serverless /api/send-customer-alert
  */
 export async function sendCustomerTelegramAlert(
   order: Order,
   status: PaymentVerificationStatus,
   settings: CompanySettings
 ): Promise<boolean> {
-  const token = settings.telegramBotToken || (import.meta as any).env?.VITE_TELEGRAM_BOT_TOKEN || '8327064995:AAHIdx3LgCYa-6Iog7fSFpMpO10pNK-yoZo';
-  
-  let targetChatId = order.telegramUserId;
-  if (!targetChatId && order.customer.telegramUsername) {
-    const cleanUser = order.customer.telegramUsername.replace('@', '').toLowerCase();
-    if (cleanUser === 'rithilysm' || cleanUser === 'rith_shees') targetChatId = '1275900952';
-    if (cleanUser === 'skybalsupport') targetChatId = '1256184682';
-  }
-
-  if (!token || !targetChatId) return false;
-
-  const isApproval = status === 'verified';
-  let customerMessage = '';
-
-  if (isApproval) {
-    customerMessage =
-      `🎉 <b>PAYMENT CONFIRMED & APPROVED!</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `Dear <b>${order.customer.fullName}</b>,\n\n` +
-      `Your payment for Order <code>#${order.orderNumber}</code> ($${order.totalAmount.toFixed(2)} USD) has been <b>VERIFIED & APPROVED</b> by INFO POS Hardware! ✅\n\n` +
-      `📦 Your hardware order is being prepared for immediate dispatch to:\n` +
-      `📍 <i>${order.customer.detailedAddress}, ${order.customer.provinceOrCity}</i>\n\n` +
-      `📞 Hotline: <b>${settings.phoneNumber}</b>\n\n` +
-      `Thank you for shopping with INFO POS Hardware!`;
-  } else {
-    customerMessage =
-      `⚠️ <b>PAYMENT VERIFICATION NOTICE</b>\n` +
-      `━━━━━━━━━━━━━━━━━━━━\n` +
-      `Dear <b>${order.customer.fullName}</b>,\n\n` +
-      `Our sales team reviewed Order <code>#${order.orderNumber}</code> but could <b>not verify</b> your payment transfer receipt. ❌\n\n` +
-      `Please contact our sales team directly at @${settings.telegramSupportUser.replace('@', '')} or call <b>${settings.phoneNumber}</b>.`;
-  }
-
   try {
-    const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    const initData = typeof window !== 'undefined' ? window.Telegram?.WebApp?.initData || '' : '';
+    const res = await fetch('/api/send-customer-alert', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: targetChatId,
-        text: customerMessage,
-        parse_mode: 'HTML',
-        reply_markup: {
-          inline_keyboard: [
-            [
-              {
-                text: '🛒 Open Store',
-                web_app: { url: 'https://mini-app-bot-eight.vercel.app/' },
-              },
-            ],
-          ],
-        },
+        order,
+        status,
+        settings,
+        initData,
       }),
     });
-    const json = await res.json();
-    return json.ok;
-  } catch {
+    const data = await res.json();
+    return Boolean(data?.ok);
+  } catch (err) {
+    console.warn('Failed to send customer alert via serverless endpoint:', err);
     return false;
   }
 }
@@ -341,7 +262,7 @@ export const apiService = {
   async getCategories(): Promise<Category[]> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 60));
-      const allProducts = getStoredProducts();
+      const allProducts = await loadProducts();
       return categories.map((cat) => ({
         ...cat,
         itemCount: allProducts.filter((p) => p.categoryId === cat.id).length,
@@ -359,7 +280,7 @@ export const apiService = {
   async getProducts(params?: ProductFilterParams): Promise<Product[]> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 80));
-      let filtered = getStoredProducts();
+      let filtered = await loadProducts();
 
       if (params?.categoryId && params.categoryId !== 'all') {
         filtered = filtered.filter((p) => p.categoryId === params.categoryId);
@@ -405,7 +326,7 @@ export const apiService = {
   async getProductById(id: string): Promise<Product | null> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 40));
-      const products = getStoredProducts();
+      const products = await loadProducts();
       const found = products.find((p) => p.id === id || p.sku.toLowerCase() === id.toLowerCase());
       return found || null;
     }
@@ -424,11 +345,12 @@ export const apiService = {
   async addProduct(product: Omit<Product, 'id'>): Promise<Product> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 100));
-      const products = getStoredProducts();
       const newProduct: Product = {
         ...product,
         id: `prod_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       };
+      if (await withSharedStore(() => remoteProductWrite({ product: newProduct }))) return newProduct;
+      const products = getStoredProducts();
       products.unshift(newProduct);
       saveStoredProducts(products);
       return newProduct;
@@ -448,6 +370,7 @@ export const apiService = {
   async updateProduct(product: Product): Promise<Product> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 100));
+      if (await withSharedStore(() => remoteProductWrite({ product }))) return product;
       const products = getStoredProducts();
       const idx = products.findIndex((p) => p.id === product.id);
       if (idx !== -1) {
@@ -471,6 +394,7 @@ export const apiService = {
   async deleteProduct(productId: string): Promise<boolean> {
     if (USE_MOCK) {
       await new Promise((r) => setTimeout(r, 100));
+      if (await withSharedStore(() => remoteProductWrite({ action: 'delete', id: productId }))) return true;
       const products = getStoredProducts();
       const filtered = products.filter((p) => p.id !== productId);
       saveStoredProducts(filtered);
@@ -650,7 +574,9 @@ export const apiService = {
   async updateSettings(settings: CompanySettings): Promise<CompanySettings> {
     if (USE_MOCK) {
       try {
-        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(settings));
+        const safeSettings = { ...settings };
+        delete (safeSettings as any).telegramBotToken;
+        localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify(safeSettings));
       } catch {}
       return settings;
     }

@@ -169,6 +169,7 @@ export function useTelegram() {
 
   return {
     webApp,
+    initData: webApp?.initData || '',
     isTelegram,
     user,
     colorScheme,
