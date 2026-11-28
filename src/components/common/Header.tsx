@@ -34,7 +34,7 @@ export const Header: React.FC<HeaderProps> = ({ onNavigate, currentScreen, setti
         </div>
         <div className="flex items-center gap-2 text-slate-300">
           <button
-            onClick={() => onNavigate('admin')}
+            onClick={() => window.location.assign('/admin')}
             className="flex items-center gap-1 text-[10px] text-brand-300 hover:text-white font-bold tracking-wider hover:underline focus:outline-none"
           >
             <ShieldCheck className="w-3 h-3 text-emerald-400" />
