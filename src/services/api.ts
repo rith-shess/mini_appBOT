@@ -116,9 +116,16 @@ async function remoteProductWrite(body: Record<string, unknown>): Promise<void> 
 }
 
 /** Shared list if available; otherwise the local list (defaults / dev mode). */
+let productsCache: { at: number; products: Product[] } | null = null;
+const PRODUCTS_CACHE_MS = 15000; // one database read per 15 s per visitor instead of one per screen
+
 async function loadProducts(): Promise<Product[]> {
+  if (productsCache && Date.now() - productsCache.at < PRODUCTS_CACHE_MS) return productsCache.products;
   const remote = await fetchRemoteProducts();
-  if (remote.status === 'ok' && remote.products.length > 0) return remote.products;
+  if (remote.status === 'ok' && remote.products.length > 0) {
+    productsCache = { at: Date.now(), products: remote.products };
+    return remote.products;
+  }
   return getStoredProducts();
 }
 
@@ -137,6 +144,7 @@ async function withSharedStore(write: () => Promise<void>): Promise<boolean> {
     await remoteProductWrite({ products: getStoredProducts() });
   }
   await write();
+  productsCache = null;
   return true;
 }
 

@@ -1,0 +1,406 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Shop Admin</title>
+<style>
+  :root {
+    --bg: #f4f5f7; --card: #ffffff; --text: #111827; --muted: #6b7280; --line: #e5e7eb;
+    --brand: #2563eb; --brand-text: #ffffff; --danger: #dc2626; --ok: #16a34a; --soft: #eef2ff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0b1220; --card: #111a2e; --text: #e5e7eb; --muted: #94a3b8; --line: #22304d; --soft: #16223d; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 16px; }
+  h1 { font-size: 20px; margin: 0; }
+  h2 { font-size: 17px; margin: 0 0 12px; }
+  .bar { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 14px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 12px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin: 12px 0 4px; }
+  input[type=text], input[type=number], input[type=password], input[type=url], select, textarea {
+    width: 100%; padding: 11px 12px; font-size: 16px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text);
+  }
+  textarea { min-height: 70px; resize: vertical; }
+  button { font: inherit; cursor: pointer; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 10px 14px; }
+  button.primary { background: var(--brand); color: var(--brand-text); border-color: var(--brand); font-weight: 600; }
+  button.danger { color: var(--danger); }
+  button:disabled { opacity: .55; cursor: default; }
+  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .row3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+  @media (max-width: 520px) { .row, .row3 { grid-template-columns: 1fr; } }
+  .item { display: flex; gap: 12px; align-items: center; }
+  .thumb { width: 64px; height: 64px; border-radius: 10px; object-fit: cover; background: var(--soft); flex: none; }
+  .grow { flex: 1; min-width: 0; }
+  .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .meta { font-size: 13px; color: var(--muted); }
+  .tag { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 99px; background: var(--soft); margin-right: 4px; }
+  .tag.off { background: #fee2e2; color: #991b1b; }
+  .drop { border: 2px dashed var(--line); border-radius: 14px; padding: 18px; text-align: center; background: var(--soft); cursor: pointer; }
+  .drop.over { border-color: var(--brand); }
+  .drop img { max-width: 100%; max-height: 260px; border-radius: 10px; display: block; margin: 0 auto 8px; }
+  .big { font-size: 15px; font-weight: 600; }
+  .checks { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; }
+  .checks label { display: flex; align-items: center; gap: 6px; margin: 0; color: var(--text); font-size: 15px; }
+  .checks input { width: 18px; height: 18px; }
+  .msg { padding: 10px 12px; border-radius: 10px; margin: 10px 0; font-size: 14px; }
+  .msg.err { background: #fee2e2; color: #991b1b; }
+  .msg.ok { background: #dcfce7; color: #166534; }
+  .msg.info { background: var(--soft); }
+  .login { max-width: 380px; margin: 12vh auto 0; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  .sticky { position: sticky; bottom: 0; background: var(--bg); padding: 10px 0; display: flex; gap: 8px; }
+  .sticky button { flex: 1; padding: 13px; }
+  code { background: var(--soft); padding: 1px 6px; border-radius: 6px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="app"><div class="msg info">Loading…</div></div>
+
+<script>
+(function () {
+  'use strict';
+
+  var CATEGORIES = [
+    ['pos-machines', 'POS Machines'], ['barcode-scanners', 'Barcode Scanners'],
+    ['receipt-printers', 'Receipt Printers'], ['label-printers', 'Label Printers'],
+    ['cash-drawers', 'Cash Drawers'], ['barcode-labels', 'Barcode Labels & Paper'],
+    ['pos-accessories', 'POS Accessories']
+  ];
+  var PLACEHOLDER = 'https://placehold.co/800x600/0f172a/ffffff?text=POS';
+  var DEFAULT_DESC_KM = 'ឧបករណ៍ POS Hardware គុណភាពស្តង់ដារ។';
+
+  var state = { view: 'loading', products: [], search: '', editing: null, photo: null, photoInfo: '', msg: null, busy: false, isNew: true, draft: null };
+  var app = document.getElementById('app');
+
+  function esc(v) {
+    return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function $(id) { return document.getElementById(id); }
+
+  async function api(path, body) {
+    var opts = body === undefined
+      ? { cache: 'no-store' }
+      : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) };
+    var res = await fetch(path, opts);
+    var json = {};
+    try { json = await res.json(); } catch (e) {}
+    if (!res.ok) {
+      var err = new Error(json.error || ('Server error ' + res.status));
+      err.status = res.status;
+      throw err;
+    }
+    return json;
+  }
+
+  function setMsg(type, text) { state.msg = text ? { type: type, text: text } : null; }
+  function msgHtml() { return state.msg ? '<div class="msg ' + state.msg.type + '">' + esc(state.msg.text) + '</div>' : ''; }
+
+  // ---------- Photo handling: shrink in the browser so uploads are small and fast ----------
+  function compressImage(file) {
+    return new Promise(function (resolve, reject) {
+      if (!file || !/^image\//.test(file.type)) return reject(new Error('Please choose an image file (JPG, PNG, WebP).'));
+      var reader = new FileReader();
+      reader.onerror = function () { reject(new Error('Could not read the photo.')); };
+      reader.onload = function () {
+        var img = new Image();
+        img.onerror = function () { reject(new Error('This photo format is not supported. Try a JPG or PNG.')); };
+        img.onload = function () {
+          var max = 900;
+          var scale = Math.min(1, max / Math.max(img.width, img.height));
+          var w = Math.max(1, Math.round(img.width * scale));
+          var h = Math.max(1, Math.round(img.height * scale));
+          var canvas = document.createElement('canvas');
+          canvas.width = w; canvas.height = h;
+          var ctx = canvas.getContext('2d');
+          ctx.fillStyle = '#ffffff'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          var q = 0.82, out = canvas.toDataURL('image/jpeg', q);
+          while (out.length > 380 * 1024 && q > 0.4) { q -= 0.1; out = canvas.toDataURL('image/jpeg', q); }
+          resolve(out);
+        };
+        img.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+  }
+
+  async function takePhoto(file) {
+    try {
+      setMsg(null);
+      var dataUrl = await compressImage(file);
+      state.photo = dataUrl;
+      state.photoInfo = 'Photo ready (' + Math.round(dataUrl.length * 0.75 / 1024) + ' KB)';
+      if (state.view === 'form') { updatePhotoBox(); } else { openForm(null); }
+    } catch (e) {
+      if (state.view === 'form') { window.alert(e.message); }
+      else { setMsg('err', e.message); render(); }
+    }
+  }
+
+  function updatePhotoBox() {
+    var box = $('photoBox');
+    if (box) box.innerHTML = photoBoxHtml();
+  }
+
+  function photoBoxHtml() {
+    var src = state.photo || (state.editing && state.editing.imageUrl) || '';
+    var has = !!src && src !== PLACEHOLDER;
+    return (has ? '<img src="' + esc(src) + '" alt="Product photo">' : '<div class="big">📷 Tap here to add a photo</div>') +
+      '<div class="meta">' + esc(state.photoInfo || (has ? 'Tap to change the photo' : 'or drag a photo here, or paste one (Ctrl+V)')) + '</div>';
+  }
+
+  // ---------- Views ----------
+  function render() {
+    if (state.view === 'loading') { app.innerHTML = '<div class="msg info">Loading…</div>'; return; }
+    if (state.view === 'setup') { renderSetup(); return; }
+    if (state.view === 'login') { renderLogin(); return; }
+    if (state.view === 'form') { renderForm(); return; }
+    renderList();
+  }
+
+  function renderSetup() {
+    app.innerHTML = '<div class="card login"><h2>Admin is not set up yet</h2>' +
+      '<p class="meta">In Vercel &rarr; your project &rarr; Settings &rarr; Environment Variables, add <code>ADMIN_PASSWORD</code> ' +
+      '(at least 8 characters, a long random password), then redeploy and reload this page.</p></div>';
+  }
+
+  function renderLogin() {
+    app.innerHTML = '<div class="card login"><h2>🔐 Shop Admin</h2>' + msgHtml() +
+      '<label for="pw">Password</label><input id="pw" type="password" autocomplete="current-password" autofocus>' +
+      '<div style="margin-top:14px"><button class="primary" id="loginBtn" style="width:100%">Log in</button></div></div>';
+    $('pw').addEventListener('keydown', function (e) { if (e.key === 'Enter') doLogin(); });
+    $('loginBtn').addEventListener('click', doLogin);
+  }
+
+  function renderList() {
+    var q = state.search.trim().toLowerCase();
+    var list = state.products.filter(function (p) {
+      return !q || (p.name && p.name.en || '').toLowerCase().indexOf(q) !== -1 || (p.sku || '').toLowerCase().indexOf(q) !== -1;
+    });
+    var html = '<div class="bar"><h1>Shop Admin</h1><div class="actions">' +
+      '<button class="primary" data-act="new">+ Add product</button>' +
+      '<button data-act="logout">Log out</button></div></div>' + msgHtml();
+
+    if (state.products.length === 0) {
+      html += '<div class="card"><h2>Your shop database is empty</h2>' +
+        '<p class="meta">Customers currently see demo products. Import the demo products to edit them, or just add your own &ndash; ' +
+        'but note: once you save your first product, customers see only what is in this database.</p>' +
+        '<button data-act="import">Import the 22 demo products</button></div>';
+    } else {
+      html += '<input type="text" id="search" placeholder="Search products…" value="' + esc(state.search) + '">' +
+        '<p class="meta">' + state.products.length + ' products &middot; drop a photo anywhere on this page to start a new product</p>';
+    }
+
+    list.forEach(function (p) {
+      html += '<div class="card item"><img class="thumb" loading="lazy" src="' + esc(p.imageUrl) + '" alt="">' +
+        '<div class="grow"><div class="name">' + esc(p.name && p.name.en) + '</div>' +
+        '<div class="meta">$' + esc(Number(p.price).toFixed(2)) + ' &middot; stock ' + esc(p.stockCount) + ' &middot; ' + esc(p.sku || '') + '</div>' +
+        '<div>' + (p.isAvailable === false ? '<span class="tag off">Hidden/out of stock</span>' : '') +
+        (p.isFeatured ? '<span class="tag">Featured</span>' : '') + (p.isLatest ? '<span class="tag">New</span>' : '') + '</div></div>' +
+        '<div class="actions"><button data-act="edit" data-id="' + esc(p.id) + '">Edit</button>' +
+        '<button class="danger" data-act="del" data-id="' + esc(p.id) + '">Delete</button></div></div>';
+    });
+    app.innerHTML = html;
+    var s = $('search');
+    if (s) s.addEventListener('input', function () {
+      state.search = s.value; var pos = s.selectionStart; renderList(); var n = $('search'); n.focus(); n.setSelectionRange(pos, pos);
+    });
+  }
+
+  function renderForm() {
+    var p = state.draft || state.editing || {};
+    var isNew = state.isNew;
+    var cat = p.categoryId || CATEGORIES[0][0];
+    var opts = CATEGORIES.map(function (c) { return '<option value="' + c[0] + '"' + (c[0] === cat ? ' selected' : '') + '>' + esc(c[1]) + '</option>'; }).join('');
+    function v(x, d) { return esc(x == null || (typeof x === 'number' && isNaN(x)) ? (d == null ? '' : d) : x); }
+    app.innerHTML = '<div class="bar"><h1>' + (isNew ? 'Add product' : 'Edit product') + '</h1></div>' + msgHtml() +
+      '<div class="card">' +
+      '<div class="drop" id="photoBox">' + photoBoxHtml() + '</div>' +
+      '<input type="file" id="file" accept="image/*" hidden>' +
+      '<label for="f-nameEn">Product name *</label><input type="text" id="f-nameEn" value="' + v(p.name && p.name.en) + '">' +
+      '<label for="f-nameKm">Name in Khmer (optional)</label><input type="text" id="f-nameKm" value="' + v(p.name && p.name.km) + '">' +
+      '<div class="row"><div><label for="f-category">Category</label><select id="f-category">' + opts + '</select></div>' +
+      '<div><label for="f-sku">SKU (leave empty to auto-create)</label><input type="text" id="f-sku" value="' + v(p.sku) + '"></div></div>' +
+      '<div class="row3"><div><label for="f-price">Price (USD) *</label><input type="number" id="f-price" step="0.01" min="0" inputmode="decimal" value="' + v(p.price) + '"></div>' +
+      '<div><label for="f-orig">Old price (optional)</label><input type="number" id="f-orig" step="0.01" min="0" inputmode="decimal" value="' + v(p.originalPrice) + '"></div>' +
+      '<div><label for="f-stock">Stock</label><input type="number" id="f-stock" min="0" inputmode="numeric" value="' + v(p.stockCount, 10) + '"></div></div>' +
+      '<label for="f-descEn">Description (optional)</label><textarea id="f-descEn">' + v(p.description && p.description.en) + '</textarea>' +
+      '<label for="f-descKm">Description in Khmer (optional)</label><textarea id="f-descKm">' + v(p.description && p.description.km) + '</textarea>' +
+      '<div class="row"><div><label for="f-warranty">Warranty</label><input type="text" id="f-warranty" value="' + v(p.warrantyPeriod, '1 Year') + '"></div>' +
+      '<div><label for="f-video">Video link (optional)</label><input type="url" id="f-video" value="' + v(p.videoUrl) + '"></div></div>' +
+      '<div class="checks"><label><input type="checkbox" id="f-avail"' + (p.isAvailable === false ? '' : ' checked') + '> Available</label>' +
+      '<label><input type="checkbox" id="f-featured"' + (p.isFeatured ? ' checked' : '') + '> Featured</label>' +
+      '<label><input type="checkbox" id="f-latest"' + (p.isLatest ? ' checked' : '') + '> New arrival</label></div></div>' +
+      '<div class="sticky"><button data-act="cancel">Cancel</button><button class="primary" data-act="save" id="saveBtn">Save product</button></div>';
+  }
+
+  // ---------- Actions ----------
+  async function loadProducts() {
+    var j = await api('/api/products');
+    state.products = j.products || [];
+    state.products.sort(function (a, b) { return String(a.name && a.name.en).localeCompare(String(b.name && b.name.en)); });
+  }
+
+  async function init() {
+    try {
+      var s = await api('/api/admin-login');
+      if (!s.configured) { state.view = 'setup'; return render(); }
+      if (!s.loggedIn) { state.view = 'login'; return render(); }
+      await loadProducts();
+      state.view = 'list';
+    } catch (e) {
+      state.view = 'list'; setMsg('err', e.message === 'store_not_configured'
+        ? 'The shared database is not connected yet (Vercel → Storage → Upstash Redis).' : e.message);
+    }
+    render();
+  }
+
+  async function doLogin() {
+    var btn = $('loginBtn'); btn.disabled = true; btn.textContent = 'Checking…';
+    try {
+      await api('/api/admin-login', { password: $('pw').value });
+      setMsg(null);
+      await loadProducts();
+      state.view = state.draft ? 'form' : 'list';
+    } catch (e) {
+      setMsg('err', e.message);
+    }
+    render();
+  }
+
+  function openForm(product) {
+    state.editing = product || null;
+    state.isNew = !product;
+    state.draft = null;
+    if (product) { state.photo = null; state.photoInfo = ''; }
+    state.view = 'form'; setMsg(null); render();
+  }
+
+  function slugId() { return 'prod_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6); }
+
+  function readForm() {
+    var old = state.editing || {};
+    var nameEn = $('f-nameEn').value.trim();
+    var warranty = $('f-warranty').value.trim() || '1 Year';
+    var orig = parseFloat($('f-orig').value);
+    var video = $('f-video').value.trim();
+    return Object.assign({}, old, {
+      id: old.id || state.newId || (state.newId = slugId()),
+      sku: $('f-sku').value.trim() || old.sku || ('SKU-' + Math.random().toString(36).slice(2, 8).toUpperCase()),
+      name: { en: nameEn, km: $('f-nameKm').value.trim() || nameEn },
+      categoryId: $('f-category').value,
+      price: parseFloat($('f-price').value),
+      originalPrice: isFinite(orig) && orig > 0 ? orig : undefined,
+      description: {
+        en: $('f-descEn').value.trim() || 'Professional grade POS hardware item.',
+        km: $('f-descKm').value.trim() || DEFAULT_DESC_KM
+      },
+      imageUrl: state.photo || old.imageUrl || PLACEHOLDER,
+      videoUrl: video || undefined,
+      isAvailable: $('f-avail').checked,
+      stockCount: parseInt($('f-stock').value, 10) || 0,
+      isFeatured: $('f-featured').checked,
+      isLatest: $('f-latest').checked,
+      warrantyPeriod: warranty,
+      specifications: old.specifications || [{ key: { en: 'Warranty', km: 'ការធានា' }, value: { en: warranty, km: warranty } }]
+    });
+  }
+
+  async function saveProduct() {
+    var product = readForm();
+    function fail(text) { state.draft = product; setMsg('err', text); renderForm(); window.scrollTo(0, 0); }
+    if (!product.name.en) return fail('Please enter the product name.');
+    if (!isFinite(product.price) || product.price < 0) return fail('Please enter a valid price.');
+
+    var btn = $('saveBtn'); btn.disabled = true; btn.textContent = 'Saving…';
+    try {
+      await api('/api/products', { product: product });
+      await loadProducts();
+      state.photo = null; state.photoInfo = ''; state.editing = null; state.draft = null; state.newId = null; state.view = 'list';
+      setMsg('ok', '✅ Saved. Customers can see it now.');
+      render();
+    } catch (e) {
+      if (e.status === 401) { state.draft = product; state.view = 'login'; setMsg('err', 'Your session expired. Please log in again.'); return render(); }
+      fail('Could not save: ' + e.message);
+    }
+  }
+
+  async function removeProduct(id) {
+    var p = state.products.filter(function (x) { return x.id === id; })[0];
+    if (!p || !window.confirm('Delete "' + (p.name && p.name.en) + '"? This cannot be undone.')) return;
+    try {
+      await api('/api/products', { action: 'delete', id: id });
+      await loadProducts();
+      setMsg('ok', 'Deleted.');
+    } catch (e) {
+      if (e.status === 401) { state.view = 'login'; setMsg('err', 'Your session expired. Please log in again.'); }
+      else setMsg('err', 'Could not delete: ' + e.message);
+    }
+    render();
+  }
+
+  async function importDefaults() {
+    try {
+      var res = await fetch('/default-products.json', { cache: 'no-store' });
+      var list = await res.json();
+      await api('/api/products', { products: list });
+      await loadProducts();
+      setMsg('ok', '✅ Imported ' + list.length + ' demo products. You can edit or delete them now.');
+    } catch (e) {
+      setMsg('err', 'Import failed: ' + e.message);
+    }
+    render();
+  }
+
+  async function logout() {
+    try { await api('/api/admin-login', { action: 'logout' }); } catch (e) {}
+    state.view = 'login'; setMsg(null); render();
+  }
+
+  // ---------- Events ----------
+  app.addEventListener('click', function (e) {
+    var photoBox = e.target.closest && e.target.closest('#photoBox');
+    if (photoBox) { $('file').click(); return; }
+    var btn = e.target.closest && e.target.closest('[data-act]');
+    if (!btn) return;
+    var act = btn.getAttribute('data-act'), id = btn.getAttribute('data-id');
+    if (act === 'new') { state.photo = null; state.photoInfo = ''; state.newId = null; openForm(null); }
+    else if (act === 'edit') openForm(state.products.filter(function (x) { return x.id === id; })[0]);
+    else if (act === 'del') removeProduct(id);
+    else if (act === 'save') saveProduct();
+    else if (act === 'cancel') { state.view = 'list'; state.editing = null; state.photo = null; setMsg(null); render(); }
+    else if (act === 'logout') logout();
+    else if (act === 'import') importDefaults();
+  });
+
+  app.addEventListener('change', function (e) {
+    if (e.target && e.target.id === 'file' && e.target.files && e.target.files[0]) { var f = e.target.files[0]; e.target.value = ''; takePhoto(f); }
+  });
+
+  window.addEventListener('dragover', function (e) { e.preventDefault(); });
+  window.addEventListener('drop', function (e) {
+    e.preventDefault();
+    if (state.view !== 'list' && state.view !== 'form') return;
+    var f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if (f) takePhoto(f);
+  });
+
+  window.addEventListener('paste', function (e) {
+    if (state.view !== 'form' && state.view !== 'list') return;
+    var items = (e.clipboardData && e.clipboardData.files) || [];
+    if (items.length && /^image\//.test(items[0].type)) { e.preventDefault(); takePhoto(items[0]); }
+  });
+
+  window.__admin = { state: state, render: render, init: init, compressImage: compressImage };
+  init();
+})();
+</script>
+</body>
+</html>
